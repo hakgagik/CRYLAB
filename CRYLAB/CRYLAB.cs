@@ -38,7 +38,12 @@ namespace CRYLAB
 
         private void withBondsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-
+            int atomsPerCell = 26;
+            DialogResult result = openFileDialog.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                SuperCell superCell = SuperCell.ReadMol2_complex(openFileDialog.FileName, atomsPerCell);
+            }
         }
 
         private void withoutBondsToolStripMenuItem_Click(object sender, EventArgs e)
@@ -51,7 +56,10 @@ namespace CRYLAB
                 superCell = SuperCell.ReadMol2_simple(filePath, superCell);
             }
         }
-         
+
+        private void toolStripStatusLabel_Click(object sender, EventArgs e)
+        {
+        }
     }
 }
 

@@ -154,9 +154,10 @@
             // toolStripStatusLabel
             // 
             this.toolStripStatusLabel.Name = "toolStripStatusLabel";
-            this.toolStripStatusLabel.Size = new System.Drawing.Size(118, 17);
-            this.toolStripStatusLabel.Text = "toolStripStatusLabel1";
+            this.toolStripStatusLabel.Size = new System.Drawing.Size(55, 17);
+            this.toolStripStatusLabel.Text = "Progress:";
             this.toolStripStatusLabel.Visible = false;
+            this.toolStripStatusLabel.Click += new System.EventHandler(this.toolStripStatusLabel_Click);
             // 
             // toolStripProgressBar
             // 
