@@ -156,7 +156,7 @@ namespace CRYLAB
 
         public string[] types;
         public int[,] bonds;
-        public string[] bondTypes;
+        public int[] bondTypes;
 
         public SuperCell() { }
 
@@ -179,20 +179,9 @@ namespace CRYLAB
 
             SuperCell superCell = new SuperCell(parent);
 
-#if _DEBUG
-            superCell.superCellSize = new int[] { 38, 38, 1 };
-            superCell.order = new int[,] { { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 } };
-#endif
-
             int atomsPerCell = superCell.order.Length;
-            int atomsPerMol = superCell.order.GetLength(0);
-            int molsPerCell = superCell.order.GetLength(1);
-
-#if _DEBUG
-
-            atomsPerMol = superCell.order.GetLength(1);
-            molsPerCell = superCell.order.GetLength(0);
-#endif
+            int molsPerCell = superCell.order.GetLength(0);
+            int atomsPerMol = superCell.order.GetLength(1);
 
             int numMols = superCell.superCellSize[0] * superCell.superCellSize[1] * superCell.superCellSize[2];
             int numCells = numMols * molsPerCell;
@@ -210,6 +199,7 @@ namespace CRYLAB
                         for (int atom = 0; atom < atomsPerCell; atom++)
                         {
                             line = reader.ReadLine();
+                            if (line == "@<TRIPOS>BOND") return null;
                             string[] items = line.Split(' ');
 
                             atomsBuffer[atom, 0] = double.Parse(items[2]);
@@ -252,22 +242,7 @@ namespace CRYLAB
         {
             SuperCell superCell = new SuperCell();
 
-            //public List<Molecule> mols;
-            //public Matrix<double> centroids;
-            //public Matrix<double> directions;
-
-
-            //public bool isParent;
-            //public int[] superCellSize;
-            //public Matrix<double> latticeVectors;
-            //public double[,] latticeParams;
-
-            //public int[,] order;
-
-            //public string[] types;
-            //public int[,] bonds;
-            //public string[] bondTypes;
-
+            #region RawDataReader
             Queue<string> atomLines = new Queue<string>();
             List<string> bondLines = new List<string>();
             StreamReader reader = File.OpenText(fileName);
@@ -321,12 +296,20 @@ namespace CRYLAB
                 return null;
             }
 
+            string latticeLine;
             if (!latticePresent)
             {
                 return null;
             }
+            else
+            {
+                latticeLine = reader.ReadLine();
+            }
+            #endregion
 
+            #region OrderFinder
             Queue<int[]> bondsQueue = new Queue<int[]>();
+            Queue<int> bondTypesQueue = new Queue<int>();
             int[] tempBond;
             int numBonds = 0;
 
@@ -341,6 +324,7 @@ namespace CRYLAB
                 else
                 {
                     bondsQueue.Enqueue(tempBond);
+                    bondTypesQueue.Enqueue(int.Parse(items[3]));
                     numBonds++;
                 }
             }
@@ -348,6 +332,7 @@ namespace CRYLAB
             Node headNode = new Node();
             Node thisAtom;
             superCell.bonds = new int[bondsQueue.Count, 2];
+            superCell.bondTypes = new int[bondsQueue.Count];
             int count = 0;
 
             while (bondsQueue.Count > 0)
@@ -355,6 +340,7 @@ namespace CRYLAB
                 tempBond = bondsQueue.Dequeue();
                 superCell.bonds[count, 0] = tempBond[0];
                 superCell.bonds[count, 1] = tempBond[1];
+                superCell.bondTypes[count] = bondTypesQueue.Dequeue();
                 thisAtom = headNode.SearchChildren(tempBond[0]);
                 if (thisAtom != null)
                 {
@@ -393,10 +379,14 @@ namespace CRYLAB
             {
                 return null;
             }
+            #endregion
+
+            #region RawDataProcessor
             int numAtoms = atomLines.Count;
             int molsPerCell = superCell.order.GetLength(0);
             int atomsPerMol = superCell.order.GetLength(1);
             int numCells = numAtoms / atomsPerCell;
+            int numMols = molsPerCell*numCells;
 
             superCell.types = new string[atomsPerCell];
             superCell.mols = new List<Molecule>();
@@ -438,7 +428,149 @@ namespace CRYLAB
 
             }
 
+            #endregion
+
+            #region LatticeFinder
+            string[] latticeItems = latticeLine.Split(' ');
+            double[,] incompleteLattice = new double[2, 3] { { double.Parse(latticeItems[0]), double.Parse(latticeItems[1]), double.Parse(latticeItems[2]) }, 
+                                                             { double.Parse(latticeItems[3]), double.Parse(latticeItems[4]), double.Parse(latticeItems[5]) } };
+
+            superCell.latticeParams = new double[2, 3] { { 0.0, 0.0, 0.0 }, { incompleteLattice[1, 0], incompleteLattice[1, 1], incompleteLattice[1, 2] } };
+            superCell.superCellSize = new int[3] { 0, 0, 0 };
+            superCell.latticeVectors = DenseMatrix.OfArray(new double[,] { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } });
+            bool[] cellDone = new bool[3] { false, false, false };
+
+            double tempA;
+            double tempB;
+            double tempC;
+
+            int cellA=0;
+            int cellB=0;
+            int cellC=0;
+
+            if (numMols > 1)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    tempA = (superCell.mols[0].centroid - superCell.mols[1].centroid).L2Norm();
+                    double tempLatticeRatio = incompleteLattice[0, i] / tempA;
+                    if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
+                    {
+                        cellA = (int)Math.Round(tempLatticeRatio);
+                        superCell.superCellSize[i] = cellA;
+                        superCell.latticeParams[0, i] = tempA;
+                        cellDone[i] = true;
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[1].centroid - superCell.mols[0].centroid);
+                        break;
+                    }
+
+                }
+            }
+            else
+            {
+                return null;
+            }
+
+
+            if (numMols > cellA)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (cellDone[i] == true) continue;
+                    tempB = (superCell.mols[0].centroid - superCell.mols[cellA].centroid).L2Norm();
+                    double tempLatticeRatio = incompleteLattice[0, i] / tempB;
+                    if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
+                    {
+                        cellB = (int)Math.Round(tempLatticeRatio);
+                        superCell.superCellSize[i] = cellB;
+                        superCell.latticeParams[0, i] = tempB;
+                        cellDone[i] = true;
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA].centroid - superCell.mols[0].centroid);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                return null;
+            }
+
+            if (numMols > cellA * cellB)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (cellDone[i] == true) continue;
+                    tempC = (superCell.mols[0].centroid - superCell.mols[cellA * cellB].centroid).L2Norm();
+                    double tempLatticeRatio = incompleteLattice[0, i] / tempC;
+                    if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
+                    {
+                        cellC = (int)Math.Round(tempLatticeRatio);
+                        superCell.superCellSize[i] = cellC;
+                        superCell.latticeParams[0, i] = tempC;
+                        cellDone[i] = true;
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA*cellB].centroid - superCell.mols[0].centroid);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                int cIndex = 3;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (cellDone[i] == false) cIndex = i;
+                }
+                superCell.superCellSize[cIndex] = 1;
+                superCell.latticeParams[0,cIndex] = incompleteLattice[0, cIndex];
+                superCell.latticeVectors.SetColumn(cIndex, FindCVect(superCell.latticeVectors.Column((cIndex + 1) % 3), superCell.latticeVectors.Column((cIndex + 2) % 3), superCell.latticeParams[1, (cIndex + 1) % 3], superCell.latticeParams[1, (cIndex + 2) % 3], superCell.latticeParams[0, cIndex]));
+            }
+            #endregion
+
             return superCell;
+        }
+
+        public static Vector<double> FindCVect(Vector<double> aVect, Vector<double> bVect, double alpha, double beta, double C)
+        {
+
+            aVect /= aVect.L2Norm();
+            bVect /= bVect.L2Norm();
+            alpha *= Math.PI / 180.0;
+            beta *= Math.PI / 180.0;
+
+            Vector<double> planeNormal = CrossProduct(aVect, bVect);
+            planeNormal /= planeNormal.L2Norm();
+            double theta = Math.Acos(planeNormal[2]);
+            double phi = Math.Atan2(planeNormal[1], planeNormal[0]);
+
+            Matrix<double> Rz = DenseMatrix.OfArray(new double[,] { { Math.Cos(phi), Math.Sin(phi), 0},
+                                                                    {-Math.Sin(phi), Math.Cos(phi), 0},
+                                                                    {     0,             0,         1} });
+            Matrix<double> Ry = DenseMatrix.OfArray(new double[,] { { Math.Cos(theta), 0, -Math.Sin(theta)},
+                                                                    {     0,           1,       0         },
+                                                                     {Math.Sin(theta), 0,  Math.Cos(theta)} });
+
+            aVect = Ry * Rz * aVect;
+            bVect = Ry * Rz * bVect;
+            
+
+            double cx1 = (Math.Cos(beta) * bVect[1] - Math.Cos(alpha) * aVect[1]);
+            double cx2 = (aVect[0] * bVect[1] - bVect[0] * aVect[1]);
+
+            double cx = cx1 / cx2;
+            double cy = (Math.Cos(beta) * bVect[0] - Math.Cos(alpha) * aVect[0]) / (aVect[1] * bVect[0] - bVect[1] * aVect[0]);
+
+            Vector<double> cVect = DenseVector.OfArray(new double[] { cx, cy, Math.Sqrt(1 - cx * cx - cy * cy) });
+            cVect = C * Rz.Inverse() * Ry.Inverse() * cVect;
+
+            return cVect;
+        }
+
+        public static Vector<double> CrossProduct(Vector<double> a, Vector<double> b)
+        {
+            //I can't believe I have to implement this manually -_-
+            return DenseVector.OfArray(new double[] { a[1]*b[2]-a[2]*b[1],
+                                                      a[2]*b[0]-a[0]*b[2],
+                                                      a[0]*b[1]-a[1]*b[0]});
         }
     }
 }

@@ -14,7 +14,7 @@ namespace CRYLAB
     public partial class CRYLAB : Form
     {
         public SuperCell parent;
-        public Queue<SuperCell> superQueue;
+        public List<SuperCell> superList;
 
         public CRYLAB()
         {
@@ -27,6 +27,7 @@ namespace CRYLAB
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            superList = new List<SuperCell>();
         }
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e)
@@ -36,29 +37,35 @@ namespace CRYLAB
             //MessageBox.Show(testMols.direction.ToString());
         }
 
-        private void withBondsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            int atomsPerCell = 26;
-            DialogResult result = openFileDialog.ShowDialog();
-            if (result == DialogResult.OK)
-            {
-                SuperCell superCell = SuperCell.ReadMol2_complex(openFileDialog.FileName, atomsPerCell);
-            }
-        }
-
-        private void withoutBondsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            DialogResult result = openFileDialog.ShowDialog();
-            if (result == DialogResult.OK)
-            {
-                string filePath = openFileDialog.FileName;
-                SuperCell superCell = new SuperCell();
-                superCell = SuperCell.ReadMol2_simple(filePath, superCell);
-            }
-        }
-
         private void toolStripStatusLabel_Click(object sender, EventArgs e)
         {
+        }
+
+        private void baseStructureToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openFileDialog.Multiselect = false;
+            if (atomsPerCell_TextBox.Text != null)
+            {
+                int atomsPerCell = int.Parse(atomsPerCell_TextBox.Text);
+                DialogResult result = openFileDialog.ShowDialog();
+                if (result == DialogResult.OK)
+                {
+                    parent = SuperCell.ReadMol2_complex(openFileDialog.FileName, atomsPerCell);
+                }
+            }
+        }
+
+        private void childStructuresToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openFileDialog.Multiselect = true;
+
+            if (parent == null) return; //TODO: Throw an error here instead!
+
+            DialogResult result = openFileDialog.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                superList.AddRange( HelperFunctions.BatchImport(openFileDialog.FileNames, parent));
+            }
         }
     }
 }

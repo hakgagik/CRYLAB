@@ -33,8 +33,6 @@
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.loadToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.baseStructureToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.withBondsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.withoutBondsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.childStructuresToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.structureMatFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -45,6 +43,7 @@
             this.toolStripStatusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripProgressBar = new System.Windows.Forms.ToolStripProgressBar();
             this.openFileDialog = new System.Windows.Forms.OpenFileDialog();
+            this.atomsPerCell_TextBox = new System.Windows.Forms.TextBox();
             this.menuStrip.SuspendLayout();
             this.statusStrip.SuspendLayout();
             this.SuspendLayout();
@@ -83,32 +82,17 @@
             // 
             // baseStructureToolStripMenuItem
             // 
-            this.baseStructureToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.withBondsToolStripMenuItem,
-            this.withoutBondsToolStripMenuItem});
             this.baseStructureToolStripMenuItem.Name = "baseStructureToolStripMenuItem";
             this.baseStructureToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
             this.baseStructureToolStripMenuItem.Text = "Base Structure";
-            // 
-            // withBondsToolStripMenuItem
-            // 
-            this.withBondsToolStripMenuItem.Name = "withBondsToolStripMenuItem";
-            this.withBondsToolStripMenuItem.Size = new System.Drawing.Size(151, 22);
-            this.withBondsToolStripMenuItem.Text = "with Bonds";
-            this.withBondsToolStripMenuItem.Click += new System.EventHandler(this.withBondsToolStripMenuItem_Click);
-            // 
-            // withoutBondsToolStripMenuItem
-            // 
-            this.withoutBondsToolStripMenuItem.Name = "withoutBondsToolStripMenuItem";
-            this.withoutBondsToolStripMenuItem.Size = new System.Drawing.Size(151, 22);
-            this.withoutBondsToolStripMenuItem.Text = "without Bonds";
-            this.withoutBondsToolStripMenuItem.Click += new System.EventHandler(this.withoutBondsToolStripMenuItem_Click);
+            this.baseStructureToolStripMenuItem.Click += new System.EventHandler(this.baseStructureToolStripMenuItem_Click);
             // 
             // childStructuresToolStripMenuItem
             // 
             this.childStructuresToolStripMenuItem.Name = "childStructuresToolStripMenuItem";
             this.childStructuresToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
             this.childStructuresToolStripMenuItem.Text = "Child Structures";
+            this.childStructuresToolStripMenuItem.Click += new System.EventHandler(this.childStructuresToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
@@ -169,11 +153,19 @@
             // 
             this.openFileDialog.Filter = "Mol2 Files|*.mol2";
             // 
+            // atomsPerCell_TextBox
+            // 
+            this.atomsPerCell_TextBox.Location = new System.Drawing.Point(45, 60);
+            this.atomsPerCell_TextBox.Name = "atomsPerCell_TextBox";
+            this.atomsPerCell_TextBox.Size = new System.Drawing.Size(100, 20);
+            this.atomsPerCell_TextBox.TabIndex = 4;
+            // 
             // CRYLAB
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(584, 561);
+            this.Controls.Add(this.atomsPerCell_TextBox);
             this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.menuStrip);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
@@ -203,11 +195,10 @@
         private System.Windows.Forms.ToolStripMenuItem saveToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem loadToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem baseStructureToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem withBondsToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem withoutBondsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem childStructuresToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
         private System.Windows.Forms.ToolStripMenuItem structureMatFileToolStripMenuItem;
+        private System.Windows.Forms.TextBox atomsPerCell_TextBox;
     }
 }
 
