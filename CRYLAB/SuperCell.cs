@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using System.IO;
+using System.Drawing;
+using OpenTK;
 
 
 // JUST TESTING
@@ -19,7 +21,7 @@ namespace CRYLAB
     {
         public Matrix<double> atoms;
         public int numAtoms;
-
+        
         public Vector<double> centroid;
         public Vector<double> direction;
         public Molecule(double[,] inputAtoms, bool getDirections)
@@ -42,7 +44,6 @@ namespace CRYLAB
             }
         }
     }
-
     public class Node
     {
         public Node Parent;
@@ -138,14 +139,26 @@ namespace CRYLAB
             return atomList;
         }
     }
-
-
+    public enum SuperCellError
+    {
+        NoError,
+        Child_StructureMismatch,
+        Base_NoBonds,
+        Base_NoLattice,
+        Base_CouldntFindOrder,
+        Base_SingleMol,
+        Base_LineCell
+    }
     public class SuperCell
     {
         public List<Molecule> mols;
         public Matrix<double> centroids;
         public Matrix<double> directions;
+        public Matrix<double> curls;
 
+        public string filePath;
+        public bool isError;
+        public SuperCellError errorType;
 
         public bool isParent;
         public int[] superCellSize;
@@ -166,9 +179,11 @@ namespace CRYLAB
             superCellSize = parent.superCellSize;
             latticeVectors = parent.latticeVectors;
             latticeParams = parent.latticeParams;
-
             order = parent.order;
-
+            types = parent.types;
+            bonds = parent.bonds;
+            bondTypes = parent.bondTypes;
+            errorType = SuperCellError.NoError;
         }
 
         public static SuperCell ReadMol2_simple(String filePath, SuperCell parent){
@@ -178,6 +193,9 @@ namespace CRYLAB
             bool startReading = false;
 
             SuperCell superCell = new SuperCell(parent);
+            superCell.isError = false;
+            superCell.errorType = SuperCellError.NoError;
+            superCell.filePath = filePath;
 
             int atomsPerCell = superCell.order.Length;
             int molsPerCell = superCell.order.GetLength(0);
@@ -199,7 +217,12 @@ namespace CRYLAB
                         for (int atom = 0; atom < atomsPerCell; atom++)
                         {
                             line = reader.ReadLine();
-                            if (line == "@<TRIPOS>BOND") return null;
+                            if (line == "@<TRIPOS>BOND")
+                            {
+                                superCell.isError = true;
+                                superCell.errorType = SuperCellError.Child_StructureMismatch;
+                                return superCell;
+                            }
                             string[] items = line.Split(' ');
 
                             atomsBuffer[atom, 0] = double.Parse(items[2]);
@@ -227,20 +250,25 @@ namespace CRYLAB
                 }
             }
 
-            Matrix<double> centroids = DenseMatrix.Create(numMols, 3, 0);
-            Matrix<double> directions = DenseMatrix.Create(numMols, 3, 0);
+            superCell.centroids = DenseMatrix.Create(numMols, 3, 0);
+            superCell.directions = DenseMatrix.Create(numMols, 3, 0);
             int count = 0;
             foreach (Molecule mol in superCell.mols)
             {
-                centroids.SetRow(count, mol.centroid);
-                directions.SetRow(count, mol.direction);
+                superCell.centroids.SetRow(count, mol.centroid);
+                superCell.directions.SetRow(count, mol.direction);
+                count++;
             }
 
             return superCell;
         }
+
         public static SuperCell ReadMol2_complex(string fileName, int atomsPerCell)
         {
             SuperCell superCell = new SuperCell();
+            superCell.isError = false;
+            superCell.errorType = SuperCellError.NoError;
+            superCell.filePath = fileName;
 
             #region RawDataReader
             Queue<string> atomLines = new Queue<string>();
@@ -293,13 +321,17 @@ namespace CRYLAB
             }
             else
             {
-                return null;
+                superCell.isError = true;
+                superCell.errorType = SuperCellError.Base_NoBonds;
+                return superCell;
             }
 
             string latticeLine;
             if (!latticePresent)
             {
-                return null;
+                superCell.isError = true;
+                superCell.errorType = SuperCellError.Base_NoLattice;
+                return superCell;
             }
             else
             {
@@ -377,7 +409,9 @@ namespace CRYLAB
             }
             else
             {
-                return null;
+                superCell.isError = true;
+                superCell.errorType = SuperCellError.Base_CouldntFindOrder;
+                return superCell;
             }
             #endregion
 
@@ -428,6 +462,16 @@ namespace CRYLAB
 
             }
 
+            superCell.centroids = DenseMatrix.Create(numMols, 3, 0);
+            superCell.directions = DenseMatrix.Create(numMols, 3, 0);
+            count = 0;
+            foreach (Molecule mol in superCell.mols)
+            {
+                superCell.centroids.SetRow(count, mol.centroid);
+                superCell.directions.SetRow(count, mol.direction);
+                count++;
+            }
+
             #endregion
 
             #region LatticeFinder
@@ -468,7 +512,9 @@ namespace CRYLAB
             }
             else
             {
-                return null;
+                superCell.isError = true;
+                superCell.errorType = SuperCellError.Base_SingleMol;
+                return superCell;
             }
 
 
@@ -492,7 +538,9 @@ namespace CRYLAB
             }
             else
             {
-                return null;
+                superCell.isError = true;
+                superCell.errorType = SuperCellError.Base_LineCell;
+                return superCell;
             }
 
             if (numMols > cellA * cellB)

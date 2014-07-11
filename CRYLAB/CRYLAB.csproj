@@ -39,6 +39,7 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>bin\OpenTK.dll</HintPath>
     </Reference>
+    <Reference Include="OpenTK.GLControl, Version=1.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Numerics" />
@@ -53,16 +54,26 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AtomsPerCellDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AtomsPerCellDialog.Designer.cs">
+      <DependentUpon>AtomsPerCellDialog.cs</DependentUpon>
+    </Compile>
     <Compile Include="CRYLAB.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="CRYLAB.Designer.cs">
       <DependentUpon>CRYLAB.cs</DependentUpon>
     </Compile>
-    <Compile Include="HelperFunctions.cs" />
+    <Compile Include="Calculator.cs" />
+    <Compile Include="Plotter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SuperCell.cs" />
+    <EmbeddedResource Include="AtomsPerCellDialog.resx">
+      <DependentUpon>AtomsPerCellDialog.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="CRYLAB.resx">
       <DependentUpon>CRYLAB.cs</DependentUpon>
     </EmbeddedResource>
