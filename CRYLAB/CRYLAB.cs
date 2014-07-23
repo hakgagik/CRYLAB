@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
 using OpenTK;
+using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace CRYLAB
 {
@@ -49,6 +51,13 @@ namespace CRYLAB
                     else
                     {
                         baseStructureTextBox.Text = Path.GetFileNameWithoutExtension(parent.filePath);
+                        browseChildrenButton.Enabled = true;
+                        cloneButton.Enabled = true;
+                        removeSelectedButton.Enabled = true;
+                        plotParentButton.Enabled = true;
+                        plotSelectedButton.Enabled = true;
+                        plotNextButton.Enabled = true;
+                        childStructuresToolStripMenuItem.Enabled = true;
                     }
                 }
             }
@@ -58,12 +67,16 @@ namespace CRYLAB
         {
             openFileDialog.Multiselect = true;
 
-            if (parent == null) return; //TODO: Throw an error here instead!
+            if (parent == null)
+            {
+                MessageBox.Show("Please load a parent structure first.");
+                return;
+            }
 
             DialogResult result = openFileDialog.ShowDialog();
             if (result == DialogResult.OK)
             {
-                List<SuperCell> newChildren = Calculator.BatchImport(openFileDialog.FileNames, parent);
+                List<SuperCell> newChildren = Calculator.BatchImport(openFileDialog.FileNames, parent, this);
                 superList.AddRange(newChildren);
                 foreach (SuperCell child in newChildren)
                 {
@@ -80,25 +93,66 @@ namespace CRYLAB
             else return PlotStyle.Centers;
         }
 
+        private FieldLineStyle GetFieldLines()
+        {
+            if (fieldLinesCheckBox.Checked)
+            {
+                if (singleRadio.Checked) return FieldLineStyle.Single;
+                else return FieldLineStyle.Full;
+            }
+            else return FieldLineStyle.None;
+        }
+
+        private void Screenshot()
+        {
+
+            saveFileDialog.Filter = Extensions.Images;
+            DialogResult result = saveFileDialog.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                ImageFormat format;
+                string filename = saveFileDialog.FileName;
+                string extension = Path.GetExtension(filename);
+                if (extension == ".png") format = ImageFormat.Png;
+                else if (extension == ".gif") format = ImageFormat.Gif;
+                else if (extension == ".jpg") format = ImageFormat.Jpeg;
+                else format = ImageFormat.Bmp;
+
+                Bitmap screenshot = plotter.Screenshot();
+                if (screenshot != null) screenshot.Save(filename, format);
+                else MessageBox.Show("Plot something first!");
+            }
+        }
+
+        private void EditPlotOptions()
+        {
+            PlotOptions blah = new PlotOptions(plotter);
+            blah.Owner = this;
+            blah.Show();
+        }
+
         private void CRYLAB_Load(object sender, EventArgs e)
         {
             superList = new List<SuperCell>();
-            plotter = new Plotter();
-            plotter.colors  = new OpenTK.Graphics.Color4[] {Color.Aquamarine, Color.Aquamarine};
+            plotter = new Plotter(this);
+            plotter.colors  = new OpenTK.Graphics.Color4[] {Color.Aquamarine, Color.Black};
             plotter.molColors = new OpenTK.Graphics.Color4[] { Color.Gray, Color.White, Color.Red, Color.Orange, Color.Yellow, Color.Green, Color.Blue, Color.Indigo, Color.Violet, Color.Brown };
             plotter.bgColor = Color.Black;
         }
 
         private void CRYLAB_Click(object sender, EventArgs e)
         {
+            if (progressBar.Value == 100) progressBar.Value = 0;
+        }
+
+        private void CRYLAB_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            plotter.Exit();
         }
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (parent != null)
-            {
-                plotter.Plot(parent, GetPlotStyle());
-            }
+            
         }
 
         private void baseStructureToolStripMenuItem_Click(object sender, EventArgs e)
@@ -130,7 +184,14 @@ namespace CRYLAB
             }
             else
             {
-                plotter.Plot(parent, GetPlotStyle());
+                if (!fieldLinesCheckBox.Checked)
+                {
+                    plotter.Plot(parent, GetPlotStyle());
+                }
+                else
+                {
+                    plotter.PlotWithFieldLines(parent, GetPlotStyle(), GetFieldLines(), 1.0);
+                }
             }
         }
 
@@ -142,11 +203,19 @@ namespace CRYLAB
             }
             else if (childListBox.SelectedIndices.Count == 0)
             {
-                MessageBox.Show("Please select at least one child structure.");
+                MessageBox.Show("Please select a child structure.");
             }
             else
             {
-                plotter.Plot(superList[childListBox.SelectedIndex], GetPlotStyle());
+                if (!fieldLinesCheckBox.Checked)
+                {
+                    plotter.Plot(superList[childListBox.SelectedIndex], GetPlotStyle());
+                }
+                else
+                {
+
+                    plotter.PlotWithFieldLines(superList[childListBox.SelectedIndex], GetPlotStyle(), GetFieldLines(), 1.0);
+                }
             }
         }
 
@@ -176,6 +245,7 @@ namespace CRYLAB
 
         private void plotNextButton_Click(object sender, EventArgs e)
         {
+            if (childListBox.SelectedIndices.Count == 0) childListBox.SelectedIndex = childListBox.Items.Count - 1;
             if (childListBox.SelectedIndices.Count == 1 && childListBox.SelectedIndex < (childListBox.Items.Count - 1))
             {
                 int currentSelected = childListBox.SelectedIndex;
@@ -188,8 +258,9 @@ namespace CRYLAB
                 childListBox.SetSelected(0, true);
                 childListBox.SetSelected(currentSelected, false);
             }
+            childListBox.SelectedIndex %= childListBox.Items.Count;
 
-            plotter.Plot(superList[childListBox.SelectedIndex], GetPlotStyle());
+            plotSelectedButton_Click(null, null);
         }
 
         private void cloneButton_Click(object sender, EventArgs e)
@@ -210,6 +281,17 @@ namespace CRYLAB
                     childListBox.Items.Add(Path.GetFileNameWithoutExtension(newChild.filePath));
                 }
             }
+        }
+
+        private void fieldLinesCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (fieldLinesCheckBox.Checked) fieldLinesPanel.Enabled = true;
+            else fieldLinesPanel.Enabled = false;
+        }
+
+        private void plotOptionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            EditPlotOptions();
         }
 
     }

@@ -84,6 +84,7 @@ namespace CRYLAB
             Parent.Children.Remove(this);
             parent.AddChild(this);
         }
+
         public Node SearchChildren(int molNumber)
         {
             if (AtomNumber == molNumber)
@@ -155,12 +156,14 @@ namespace CRYLAB
         public Matrix<double> centroids;
         public Matrix<double> directions;
         public Matrix<double> curls;
+        public Matrix<double>[] totalDerivatives;
 
         public string filePath;
         public bool isError;
         public SuperCellError errorType;
 
         public bool isParent;
+        public SuperCell parent = null;
         public int[] superCellSize;
         public Matrix<double> latticeVectors;
         public double[,] latticeParams;
@@ -196,6 +199,7 @@ namespace CRYLAB
             superCell.isError = false;
             superCell.errorType = SuperCellError.NoError;
             superCell.filePath = filePath;
+            superCell.parent = parent;
 
             int atomsPerCell = superCell.order.Length;
             int molsPerCell = superCell.order.GetLength(0);
@@ -260,6 +264,8 @@ namespace CRYLAB
                 count++;
             }
 
+            superCell.CalculateDerivatives();
+
             return superCell;
         }
 
@@ -267,6 +273,7 @@ namespace CRYLAB
         {
             SuperCell superCell = new SuperCell();
             superCell.isError = false;
+            superCell.isParent = true;
             superCell.errorType = SuperCellError.NoError;
             superCell.filePath = fileName;
 
@@ -574,6 +581,8 @@ namespace CRYLAB
             }
             #endregion
 
+            superCell.CalculateDerivatives();
+
             return superCell;
         }
 
@@ -585,7 +594,7 @@ namespace CRYLAB
             alpha *= Math.PI / 180.0;
             beta *= Math.PI / 180.0;
 
-            Vector<double> planeNormal = CrossProduct(aVect, bVect);
+            Vector<double> planeNormal = Calculator.CrossProduct(aVect, bVect);
             planeNormal /= planeNormal.L2Norm();
             double theta = Math.Acos(planeNormal[2]);
             double phi = Math.Atan2(planeNormal[1], planeNormal[0]);
@@ -613,12 +622,57 @@ namespace CRYLAB
             return cVect;
         }
 
-        public static Vector<double> CrossProduct(Vector<double> a, Vector<double> b)
+        public void CalculateDerivatives()
         {
-            //I can't believe I have to implement this manually -_-
-            return DenseVector.OfArray(new double[] { a[1]*b[2]-a[2]*b[1],
-                                                      a[2]*b[0]-a[0]*b[2],
-                                                      a[0]*b[1]-a[1]*b[0]});
+            curls = DenseMatrix.Create(centroids.RowCount, 3, 0.0);
+            totalDerivatives = new Matrix<double>[curls.RowCount];
+            for (int i = 0; i < centroids.RowCount; i++)
+            {
+                Vector<double> point = centroids.Row(i);
+                List<int> nearbyPoints = Calculator.NearestNeighbors(point, this);
+                Vector<double> force = directions.Row(i);
+                Vector<double> ddx = DenseVector.Create(3, 0);
+                Vector<double> ddy = DenseVector.Create(3, 0);
+                Vector<double> ddz = DenseVector.Create(3, 0);
+
+                int xCount = 0;
+                int yCount = 0;
+                int zCount = 0;
+                foreach (int j in nearbyPoints)
+                {
+                    if (i != j)
+                    {
+                        Vector<double> displacement = point - centroids.Row(j);
+                        if (displacement[0] > 0.001)
+                        {
+                            ddx += (force - directions.Row(j)) / displacement[0];
+                            xCount++;
+                        }
+                        if (displacement[1] > 0.001)
+                        {
+                            ddy += (force - directions.Row(j)) / displacement[1];
+                            yCount++;
+                        }
+                        if (displacement[2] > 0.01)
+                        {
+                            ddz += (force - directions.Row(j)) / displacement[2];
+                            zCount++;
+                        }
+                        
+                        
+                    }
+                }
+                if (xCount > 0) ddx /= xCount;
+                if (yCount > 0) ddy /= yCount;
+                if (zCount > 0) ddz /= zCount;
+
+                totalDerivatives[i] = DenseMatrix.Create(3, 3, 0);
+                totalDerivatives[i].SetColumn(0, ddx);
+                totalDerivatives[i].SetColumn(1, ddy);
+                totalDerivatives[i].SetColumn(2, ddz);
+
+                curls.SetRow(i, new double[] { ddy[2] - ddz[0], ddz[0] - ddx[2], ddx[1] - ddy[0] });
+            }
         }
     }
 }

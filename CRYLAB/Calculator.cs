@@ -4,20 +4,59 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
+using System.Windows.Forms;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using OpenTK;
-using System.Windows.Forms;
+using OpenTK.Graphics;
 
 namespace CRYLAB
 {
-    class Calculator
+    public class FieldLine : List<Vector3d>
     {
-        public static List<SuperCell> BatchImport(string[] filenames, SuperCell parent)
+        public List<double> Strength;
+        public List<Color4> Colors;
+
+        public FieldLine()
+            : base()
+        {
+            Strength = new List<double>();
+            Colors = new List<Color4>();
+        }
+
+        public void Add(Vector3d vector, double strength)
+        {
+            base.Add(vector);
+            Strength.Add(strength);
+        }
+
+        public void AddRange(FieldLine fieldLine)
+        {
+            base.AddRange(fieldLine);
+            Strength.AddRange(fieldLine.Strength);
+        }
+
+        new public void Reverse()
+        {
+            base.Reverse();
+            Strength.Reverse();
+        }
+
+
+    }
+    public struct Extensions
+    {
+        public static string Images = "Portable Network Graphics|*.png|JPEG|*.jpg|GIF|*.gif|Bitmap|*.bmp";
+        public static string Mol2 = "Mol2 Files|*.mol2";
+    }
+    static class Calculator
+    {
+        public static List<SuperCell> BatchImport(string[] filenames, SuperCell parent, CRYLAB form)
         {
             List<SuperCell> superList = new List<SuperCell>();
-            foreach (string filename in filenames)
+            for (int i = 0; i < filenames.Length; i++)
             {
+                string filename = filenames[i];
                 SuperCell child = SuperCell.ReadMol2_simple(filename, parent);
                 if (child.isError)
                 {
@@ -27,13 +66,18 @@ namespace CRYLAB
                 {
                     superList.Add(child);
                 }
+                form.progressBar.Value = (int)((double)(i + 1) / (double)filenames.Length * 100.0);
             }
+            form.progressBar.Value = 100;
             return superList;
         }
 
-        public static Matrix<double> CalculateCurls(SuperCell superCell)
+        public static Vector<double> CrossProduct(Vector<double> a, Vector<double> b)
         {
-            throw new NotImplementedException();
+            //I can't believe I have to implement this manually -_-
+            return DenseVector.OfArray(new double[] { a[1]*b[2]-a[2]*b[1],
+                                                      a[2]*b[0]-a[0]*b[2],
+                                                      a[0]*b[1]-a[1]*b[0]});
         }
 
         public static double Clip(double min, double max, double input)
@@ -88,6 +132,161 @@ namespace CRYLAB
             }
 
             MessageBox.Show(errorString);
+        }
+
+        public static FieldLine GetFieldLine(Matrix<double> directions, Vector<double> seed, SuperCell superCell, double std)
+        {
+            FieldLine displayList = new FieldLine();
+            FieldLine forwardList = new FieldLine();
+            FieldLine backwardList = new FieldLine();
+
+            int pointLimit = 1000;
+            double multiplier = 1.0;
+
+            Vector<double> currentPoint = seed;
+            if (GetForce(directions, superCell, seed, std, 1.0) != null)
+            {
+                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), GetForce(directions, superCell, seed, std, 1.0).L2Norm());
+            }
+            else
+            {
+                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), 0);
+            }
+            Vector<double> previousForce;
+            Vector<double> currentForce = DenseVector.Create(3, 0);
+            Vector<double> previousPoint;
+            Vector<double> displacement;
+            double acceleration;
+
+            for (int i = 0; i < pointLimit; i++)
+            {
+                previousPoint = currentPoint;
+                previousForce = currentForce;
+                currentForce = GetForce(directions, superCell, previousPoint, std, 1.0);
+
+                if (currentForce == null) break;
+                displacement = currentForce * multiplier;
+                currentPoint = previousPoint + displacement;
+                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), currentForce.L2Norm());
+                acceleration = (currentForce - previousForce).L2Norm() / displacement.L2Norm();
+                multiplier = UpdateMultiplier(acceleration);
+                if (multiplier > 50) break;
+            }
+
+            currentPoint = seed;
+            currentForce = DenseVector.Create(3, 0);
+            for (int i = 0; i < pointLimit; i++)
+            {
+                previousPoint = currentPoint;
+                previousForce = currentForce;
+                currentForce = GetForce(directions, superCell, previousPoint, std, -1.0);
+                if (currentForce == null) break;
+                displacement = currentForce * multiplier;
+                currentPoint = previousPoint + displacement;
+                backwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]),currentForce.L2Norm());
+                acceleration = (currentForce - previousForce).L2Norm() / displacement.L2Norm();
+                multiplier = UpdateMultiplier(acceleration);
+                if (multiplier > 50) break;
+            }
+
+            backwardList.Reverse();
+            displayList.AddRange(backwardList);
+            displayList.AddRange(forwardList);
+
+
+
+
+            return displayList;
+        }
+
+        private static double UpdateMultiplier(double acceleration)
+        {
+            return Math.Pow(acceleration, -0.3);
+        }
+
+        private static Vector<double> GetForce(Matrix<double> directions, SuperCell superCell, Vector<double> seed, double std, double direction)
+        {
+            List<int> nearbyPoints = NearestNeighbors(seed, superCell);
+            if (nearbyPoints.Count == 0)
+            {
+                return null;
+            }
+            else
+            {
+                return direction * Interpolate(nearbyPoints, directions, superCell, seed, std);
+            }
+
+        }
+
+        public static List<int> NearestNeighbors(Vector<double> point, SuperCell superCell)
+        {
+            List<int> nearbyPoints = new List<int>();
+            Vector<double> coordinates = superCell.latticeVectors.Solve(point - superCell.centroids.Row(0));
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int k = 0; k < 2; k++)
+                    {
+                        int[] indicies = new int[] { (int)Math.Floor(coordinates[0] + i), (int)Math.Floor(coordinates[1] + j), (int)Math.Floor(coordinates[2] + k) };
+                        if (indicies[0] >= 0 && indicies[0] < superCell.superCellSize[0] && indicies[1] >= 0 && indicies[1] < superCell.superCellSize[1] && indicies[2] >= 0 && indicies[2] < superCell.superCellSize[2])
+                        {
+                            nearbyPoints.Add(Sub2Ind(indicies, superCell.superCellSize));
+                        }
+                    }
+                }
+            }
+            return nearbyPoints;
+        }
+
+        public static Vector<double> Interpolate(List<int> nearbyPoints, Matrix<double> vectors, SuperCell superCell, Vector<double> point, double std)
+        {
+            Vector<double> force = DenseVector.Create(3, 0);
+            double weight;
+            double weights = 0;
+            for (int i = 0; i < nearbyPoints.Count; i++)
+            {
+                Vector<double> blah = superCell.centroids.Row(nearbyPoints[i]);
+                double displacement = (superCell.centroids.Row(nearbyPoints[i]) - point).L2Norm();
+                weight = Math.Exp(-displacement * displacement / (2 * std));
+                weights += weight;
+                force += vectors.Row(nearbyPoints[i]) * weight;
+            }
+            return force / weights;
+        }
+        
+        public static int Sub2Ind(int[] subscripts, int[] dimensions)
+        {
+            return subscripts[0] + dimensions[0] * subscripts[1] + dimensions[0] * dimensions[1] * subscripts[2];
+        }
+
+        //public static int[] Ind2Sub(int index, int[] dimensions)
+        //{
+        //    int product;
+
+        //    int[] subscripts = new int[dimensions.Length];
+        //    for (int i = 0; i < dimensions.Length; i++)
+        //    {
+        //        product = 1;
+        //        for (int j = i + 1; j < dimensions.Length; j++)
+        //        {
+        //            product *= dimensions[j];
+        //        }
+        //        subscripts[i] = index / product;
+        //        index = index % product;
+        //    }
+
+        //    return subscripts;
+        //} 
+
+        public static Vector<double> TK2Num(Vector3d vector)
+        {
+            return DenseVector.OfArray(new double[] { vector[0], vector[1], vector[2] });
+        }
+
+        public static Vector3d Num2TK(Vector<double> vector)
+        {
+            return new Vector3d(vector[0], vector[1], vector[2]);
         }
     }
 }

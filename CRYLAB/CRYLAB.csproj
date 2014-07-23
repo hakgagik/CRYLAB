@@ -67,6 +67,12 @@
       <DependentUpon>CRYLAB.cs</DependentUpon>
     </Compile>
     <Compile Include="Calculator.cs" />
+    <Compile Include="PlotOptions.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PlotOptions.Designer.cs">
+      <DependentUpon>PlotOptions.cs</DependentUpon>
+    </Compile>
     <Compile Include="Plotter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -76,6 +82,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="CRYLAB.resx">
       <DependentUpon>CRYLAB.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PlotOptions.resx">
+      <DependentUpon>PlotOptions.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

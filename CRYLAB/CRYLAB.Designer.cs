@@ -38,7 +38,7 @@
             this.structureMatFileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.saveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.colorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.plotOptionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.calculateToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog = new System.Windows.Forms.OpenFileDialog();
             this.childListBox = new System.Windows.Forms.ListBox();
@@ -46,6 +46,7 @@
             this.childStructuresLabel = new System.Windows.Forms.Label();
             this.parentStructureLabel = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.cloneButton = new System.Windows.Forms.Button();
             this.removeSelectedButton = new System.Windows.Forms.Button();
             this.browseChildrenButton = new System.Windows.Forms.Button();
             this.browseParentButton = new System.Windows.Forms.Button();
@@ -53,16 +54,25 @@
             this.plotParentButton = new System.Windows.Forms.Button();
             this.plotNextButton = new System.Windows.Forms.Button();
             this.panel2 = new System.Windows.Forms.Panel();
+            this.fieldLinesPanel = new System.Windows.Forms.Panel();
+            this.fullRadio = new System.Windows.Forms.RadioButton();
+            this.singleRadio = new System.Windows.Forms.RadioButton();
+            this.fieldLinesCheckBox = new System.Windows.Forms.CheckBox();
             this.plotStyleGroup = new System.Windows.Forms.GroupBox();
             this.curlsRadio = new System.Windows.Forms.RadioButton();
             this.moleculesRadio = new System.Windows.Forms.RadioButton();
             this.vectorsRadio = new System.Windows.Forms.RadioButton();
             this.centroidsRadio = new System.Windows.Forms.RadioButton();
-            this.cloneButton = new System.Windows.Forms.Button();
+            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
+            this.statusStrip = new System.Windows.Forms.StatusStrip();
+            this.progressLabel = new System.Windows.Forms.ToolStripStatusLabel();
+            this.progressBar = new System.Windows.Forms.ToolStripProgressBar();
             this.menuStrip.SuspendLayout();
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
+            this.fieldLinesPanel.SuspendLayout();
             this.plotStyleGroup.SuspendLayout();
+            this.statusStrip.SuspendLayout();
             this.SuspendLayout();
             // 
             // menuStrip
@@ -94,55 +104,61 @@
             this.toolStripSeparator1,
             this.structureMatFileToolStripMenuItem});
             this.loadToolStripMenuItem.Name = "loadToolStripMenuItem";
-            this.loadToolStripMenuItem.Size = new System.Drawing.Size(100, 22);
+            this.loadToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
             this.loadToolStripMenuItem.Text = "Load";
             // 
             // baseStructureToolStripMenuItem
             // 
             this.baseStructureToolStripMenuItem.Name = "baseStructureToolStripMenuItem";
-            this.baseStructureToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
+            this.baseStructureToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)(((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Shift) 
+            | System.Windows.Forms.Keys.O)));
+            this.baseStructureToolStripMenuItem.Size = new System.Drawing.Size(224, 22);
             this.baseStructureToolStripMenuItem.Text = "Base Structure";
             this.baseStructureToolStripMenuItem.Click += new System.EventHandler(this.baseStructureToolStripMenuItem_Click);
             // 
             // childStructuresToolStripMenuItem
             // 
+            this.childStructuresToolStripMenuItem.Enabled = false;
             this.childStructuresToolStripMenuItem.Name = "childStructuresToolStripMenuItem";
-            this.childStructuresToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
+            this.childStructuresToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.O)));
+            this.childStructuresToolStripMenuItem.Size = new System.Drawing.Size(224, 22);
             this.childStructuresToolStripMenuItem.Text = "Child Structures";
             this.childStructuresToolStripMenuItem.Click += new System.EventHandler(this.childStructuresToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(162, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(221, 6);
             // 
             // structureMatFileToolStripMenuItem
             // 
             this.structureMatFileToolStripMenuItem.Name = "structureMatFileToolStripMenuItem";
-            this.structureMatFileToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
+            this.structureMatFileToolStripMenuItem.Size = new System.Drawing.Size(224, 22);
             this.structureMatFileToolStripMenuItem.Text = "Structure mat file";
             this.structureMatFileToolStripMenuItem.Click += new System.EventHandler(this.structureMatFileToolStripMenuItem_Click);
             // 
             // saveToolStripMenuItem
             // 
             this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
-            this.saveToolStripMenuItem.Size = new System.Drawing.Size(100, 22);
+            this.saveToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
+            this.saveToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
             this.saveToolStripMenuItem.Text = "Save";
             this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
             // 
             // editToolStripMenuItem
             // 
             this.editToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.colorsToolStripMenuItem});
+            this.plotOptionsToolStripMenuItem});
             this.editToolStripMenuItem.Name = "editToolStripMenuItem";
             this.editToolStripMenuItem.Size = new System.Drawing.Size(39, 20);
             this.editToolStripMenuItem.Text = "Edit";
             // 
-            // colorsToolStripMenuItem
+            // plotOptionsToolStripMenuItem
             // 
-            this.colorsToolStripMenuItem.Name = "colorsToolStripMenuItem";
-            this.colorsToolStripMenuItem.Size = new System.Drawing.Size(108, 22);
-            this.colorsToolStripMenuItem.Text = "Colors";
+            this.plotOptionsToolStripMenuItem.Name = "plotOptionsToolStripMenuItem";
+            this.plotOptionsToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.plotOptionsToolStripMenuItem.Text = "Plot Options";
+            this.plotOptionsToolStripMenuItem.Click += new System.EventHandler(this.plotOptionsToolStripMenuItem_Click);
             // 
             // calculateToolStripMenuItem
             // 
@@ -199,13 +215,25 @@
             this.panel1.Controls.Add(this.parentStructureLabel);
             this.panel1.Controls.Add(this.baseStructureTextBox);
             this.panel1.Controls.Add(this.childStructuresLabel);
-            this.panel1.Location = new System.Drawing.Point(12, 394);
+            this.panel1.Location = new System.Drawing.Point(12, 381);
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(252, 155);
             this.panel1.TabIndex = 7;
             // 
+            // cloneButton
+            // 
+            this.cloneButton.Enabled = false;
+            this.cloneButton.Location = new System.Drawing.Point(170, 96);
+            this.cloneButton.Name = "cloneButton";
+            this.cloneButton.Size = new System.Drawing.Size(78, 23);
+            this.cloneButton.TabIndex = 12;
+            this.cloneButton.Text = "Clone";
+            this.cloneButton.UseVisualStyleBackColor = true;
+            this.cloneButton.Click += new System.EventHandler(this.cloneButton_Click);
+            // 
             // removeSelectedButton
             // 
+            this.removeSelectedButton.Enabled = false;
             this.removeSelectedButton.Location = new System.Drawing.Point(169, 125);
             this.removeSelectedButton.Name = "removeSelectedButton";
             this.removeSelectedButton.Size = new System.Drawing.Size(79, 23);
@@ -216,6 +244,7 @@
             // 
             // browseChildrenButton
             // 
+            this.browseChildrenButton.Enabled = false;
             this.browseChildrenButton.Location = new System.Drawing.Point(169, 55);
             this.browseChildrenButton.Name = "browseChildrenButton";
             this.browseChildrenButton.Size = new System.Drawing.Size(79, 23);
@@ -236,7 +265,8 @@
             // 
             // plotSelectedButton
             // 
-            this.plotSelectedButton.Location = new System.Drawing.Point(114, 55);
+            this.plotSelectedButton.Enabled = false;
+            this.plotSelectedButton.Location = new System.Drawing.Point(203, 55);
             this.plotSelectedButton.Name = "plotSelectedButton";
             this.plotSelectedButton.Size = new System.Drawing.Size(79, 23);
             this.plotSelectedButton.TabIndex = 9;
@@ -246,7 +276,8 @@
             // 
             // plotParentButton
             // 
-            this.plotParentButton.Location = new System.Drawing.Point(114, 26);
+            this.plotParentButton.Enabled = false;
+            this.plotParentButton.Location = new System.Drawing.Point(203, 26);
             this.plotParentButton.Name = "plotParentButton";
             this.plotParentButton.Size = new System.Drawing.Size(79, 23);
             this.plotParentButton.TabIndex = 8;
@@ -256,7 +287,8 @@
             // 
             // plotNextButton
             // 
-            this.plotNextButton.Location = new System.Drawing.Point(114, 84);
+            this.plotNextButton.Enabled = false;
+            this.plotNextButton.Location = new System.Drawing.Point(203, 84);
             this.plotNextButton.Name = "plotNextButton";
             this.plotNextButton.Size = new System.Drawing.Size(79, 23);
             this.plotNextButton.TabIndex = 12;
@@ -266,14 +298,59 @@
             // 
             // panel2
             // 
+            this.panel2.Controls.Add(this.fieldLinesPanel);
+            this.panel2.Controls.Add(this.fieldLinesCheckBox);
             this.panel2.Controls.Add(this.plotStyleGroup);
             this.panel2.Controls.Add(this.plotSelectedButton);
             this.panel2.Controls.Add(this.plotNextButton);
             this.panel2.Controls.Add(this.plotParentButton);
-            this.panel2.Location = new System.Drawing.Point(270, 435);
+            this.panel2.Location = new System.Drawing.Point(270, 422);
             this.panel2.Name = "panel2";
-            this.panel2.Size = new System.Drawing.Size(203, 114);
+            this.panel2.Size = new System.Drawing.Size(285, 114);
             this.panel2.TabIndex = 13;
+            // 
+            // fieldLinesPanel
+            // 
+            this.fieldLinesPanel.Controls.Add(this.fullRadio);
+            this.fieldLinesPanel.Controls.Add(this.singleRadio);
+            this.fieldLinesPanel.Enabled = false;
+            this.fieldLinesPanel.Location = new System.Drawing.Point(107, 68);
+            this.fieldLinesPanel.Name = "fieldLinesPanel";
+            this.fieldLinesPanel.Size = new System.Drawing.Size(90, 42);
+            this.fieldLinesPanel.TabIndex = 15;
+            // 
+            // fullRadio
+            // 
+            this.fullRadio.AutoSize = true;
+            this.fullRadio.Location = new System.Drawing.Point(4, 22);
+            this.fullRadio.Name = "fullRadio";
+            this.fullRadio.Size = new System.Drawing.Size(36, 17);
+            this.fullRadio.TabIndex = 1;
+            this.fullRadio.Text = "All";
+            this.fullRadio.UseVisualStyleBackColor = true;
+            // 
+            // singleRadio
+            // 
+            this.singleRadio.AutoSize = true;
+            this.singleRadio.Checked = true;
+            this.singleRadio.Location = new System.Drawing.Point(4, 4);
+            this.singleRadio.Name = "singleRadio";
+            this.singleRadio.Size = new System.Drawing.Size(54, 17);
+            this.singleRadio.TabIndex = 0;
+            this.singleRadio.TabStop = true;
+            this.singleRadio.Text = "Single";
+            this.singleRadio.UseVisualStyleBackColor = true;
+            // 
+            // fieldLinesCheckBox
+            // 
+            this.fieldLinesCheckBox.AutoSize = true;
+            this.fieldLinesCheckBox.Location = new System.Drawing.Point(112, 46);
+            this.fieldLinesCheckBox.Name = "fieldLinesCheckBox";
+            this.fieldLinesCheckBox.Size = new System.Drawing.Size(76, 17);
+            this.fieldLinesCheckBox.TabIndex = 14;
+            this.fieldLinesCheckBox.Text = "Field Lines";
+            this.fieldLinesCheckBox.UseVisualStyleBackColor = true;
+            this.fieldLinesCheckBox.CheckedChanged += new System.EventHandler(this.fieldLinesCheckBox_CheckedChanged);
             // 
             // plotStyleGroup
             // 
@@ -283,7 +360,7 @@
             this.plotStyleGroup.Controls.Add(this.centroidsRadio);
             this.plotStyleGroup.Location = new System.Drawing.Point(3, 3);
             this.plotStyleGroup.Name = "plotStyleGroup";
-            this.plotStyleGroup.Size = new System.Drawing.Size(105, 107);
+            this.plotStyleGroup.Size = new System.Drawing.Size(103, 107);
             this.plotStyleGroup.TabIndex = 13;
             this.plotStyleGroup.TabStop = false;
             this.plotStyleGroup.Text = "Plot Style";
@@ -330,21 +407,34 @@
             this.centroidsRadio.Text = "Centroids Only";
             this.centroidsRadio.UseVisualStyleBackColor = true;
             // 
-            // cloneButton
+            // statusStrip
             // 
-            this.cloneButton.Location = new System.Drawing.Point(170, 96);
-            this.cloneButton.Name = "cloneButton";
-            this.cloneButton.Size = new System.Drawing.Size(78, 23);
-            this.cloneButton.TabIndex = 12;
-            this.cloneButton.Text = "Clone";
-            this.cloneButton.UseVisualStyleBackColor = true;
-            this.cloneButton.Click += new System.EventHandler(this.cloneButton_Click);
+            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.progressLabel,
+            this.progressBar});
+            this.statusStrip.Location = new System.Drawing.Point(0, 539);
+            this.statusStrip.Name = "statusStrip";
+            this.statusStrip.Size = new System.Drawing.Size(584, 22);
+            this.statusStrip.TabIndex = 14;
+            this.statusStrip.Text = "statusStrip";
+            // 
+            // progressLabel
+            // 
+            this.progressLabel.Name = "progressLabel";
+            this.progressLabel.Size = new System.Drawing.Size(55, 17);
+            this.progressLabel.Text = "Progress:";
+            // 
+            // progressBar
+            // 
+            this.progressBar.Name = "progressBar";
+            this.progressBar.Size = new System.Drawing.Size(100, 16);
             // 
             // CRYLAB
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(584, 561);
+            this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.panel2);
             this.Controls.Add(this.panel1);
             this.Controls.Add(this.menuStrip);
@@ -352,6 +442,7 @@
             this.MainMenuStrip = this.menuStrip;
             this.Name = "CRYLAB";
             this.Text = "CRYLAB";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.CRYLAB_FormClosing);
             this.Load += new System.EventHandler(this.CRYLAB_Load);
             this.Click += new System.EventHandler(this.CRYLAB_Click);
             this.menuStrip.ResumeLayout(false);
@@ -359,8 +450,13 @@
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
             this.panel2.ResumeLayout(false);
+            this.panel2.PerformLayout();
+            this.fieldLinesPanel.ResumeLayout(false);
+            this.fieldLinesPanel.PerformLayout();
             this.plotStyleGroup.ResumeLayout(false);
             this.plotStyleGroup.PerformLayout();
+            this.statusStrip.ResumeLayout(false);
+            this.statusStrip.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -396,8 +492,16 @@
         private System.Windows.Forms.RadioButton moleculesRadio;
         private System.Windows.Forms.RadioButton vectorsRadio;
         private System.Windows.Forms.RadioButton centroidsRadio;
-        private System.Windows.Forms.ToolStripMenuItem colorsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem plotOptionsToolStripMenuItem;
         private System.Windows.Forms.Button cloneButton;
+        private System.Windows.Forms.CheckBox fieldLinesCheckBox;
+        private System.Windows.Forms.Panel fieldLinesPanel;
+        private System.Windows.Forms.RadioButton fullRadio;
+        private System.Windows.Forms.RadioButton singleRadio;
+        private System.Windows.Forms.SaveFileDialog saveFileDialog;
+        private System.Windows.Forms.StatusStrip statusStrip;
+        public System.Windows.Forms.ToolStripStatusLabel progressLabel;
+        public System.Windows.Forms.ToolStripProgressBar progressBar;
     }
 }
 

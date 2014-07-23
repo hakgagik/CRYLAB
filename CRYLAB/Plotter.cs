@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Drawing;
 using OpenTK;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
@@ -24,7 +25,7 @@ namespace CRYLAB
         Curl
     }
 
-    public enum FieldLines
+    public enum FieldLineStyle
     {
         None,
         Single,
@@ -37,21 +38,28 @@ namespace CRYLAB
         public List<Color4> colorList;
         public double minLength;
         public double maxLength;
+        public Vector3d planeNormal;
+        public Vector3d pointOnPlane;
     }
 
     public class Plotter
     {
         private Thread runGameThread;
+        private Thread calcFieldLinesThread;
+        private CRYLAB mainForm;
 
         private bool firstRun = true;
         public bool isRunning = false;
         private bool isPaused = false;
+        private bool pauseFieldLines = false;
+        private bool exitGame = false;
 
         private PlotStyle plotStyle;
-        private FieldLines fieldLines;
+        private FieldLineStyle fieldLineStyle;
         private double fieldLineDensity = 1.0;
         private SuperCell currentCell;
         private List<Vector3d> displayList;
+        private List<FieldLine> fieldLineList;
 
         private Vector3d eye;
         private Vector3d target;
@@ -62,8 +70,10 @@ namespace CRYLAB
         public double r;
 
         private double[] extents;
-        private int width;
-        private int height;
+        private int viewWidth;
+        private int viewHeight;
+        private int viewX0;
+        private int viewY0;
         private double gameWidth;
         private double gameHeight;
         private double gameDepth;
@@ -71,6 +81,9 @@ namespace CRYLAB
 
         private bool rotationLocked = false;
         private bool mouseDown = false;
+        int mouseX;
+        int mouseY;
+        bool mouseChanged;
         private MouseButton mouseButton;
 
         public Color4[] colors;
@@ -78,6 +91,13 @@ namespace CRYLAB
         public Color4 bgColor;
         public MiscInfo miscInfo;
 
+        private bool grabScreenshot;
+        Bitmap screenshot;
+
+        public Plotter(CRYLAB form)
+        {
+            mainForm = form;
+        }
         
         public void PlotInit()
         {
@@ -94,6 +114,8 @@ namespace CRYLAB
                     game.Mouse.Move += Mouse_Move;
                     game.Mouse.WheelChanged += Mouse_WheelChanged;
                     game.Closing += game_Closing;
+
+
                     firstRun = false;
                 }
                 game.Run(60);
@@ -105,6 +127,8 @@ namespace CRYLAB
             isRunning = false;
             isPaused = false;
             firstRun = true;
+            mouseDown = false;
+            pauseFieldLines = false;
         }
 
         void Mouse_WheelChanged(object sender, MouseWheelEventArgs e)
@@ -125,16 +149,22 @@ namespace CRYLAB
                         if (!rotationLocked)
                         {
                             theta -= (double)e.YDelta * Math.PI / 200.0;
-                            theta = Calculator.Clip(0,Math.PI,theta);
+                            theta = Calculator.Clip(0, Math.PI, theta);
                             phi -= (double)e.XDelta * Math.PI / 200.0;
                             UpdateView();
                         }
                         break;
                     case MouseButton.Right:
-                        target -= e.XDelta * right * gameWidth / (double)width - e.YDelta * up * gameHeight / (double)height;
-                        eye -= e.XDelta * right * gameWidth / (double)width - e.YDelta * up * gameHeight / (double)height;
+                        target -= e.XDelta * right * gameWidth / (double)viewWidth - e.YDelta * up * gameHeight / (double)viewHeight;
+                        eye -= e.XDelta * right * gameWidth / (double)viewWidth - e.YDelta * up * gameHeight / (double)viewHeight;
                         break;
                 }
+            }
+            if (mouseX != e.X || mouseY != e.Y)
+            {
+                mouseChanged = true;
+                mouseX = e.X;
+                mouseY = e.Y;
             }
         }
         
@@ -147,12 +177,14 @@ namespace CRYLAB
         {
             mouseDown = true;
             mouseButton = e.Button;
+            Vector<double> seed = ProjectToPlane(e.X, e.Y);
         }
         
         void game_RenderFrame(object sender, FrameEventArgs e)
         {
             if (!isPaused)
             {
+                GL.ClearColor(bgColor);
                 GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
                 GL.MatrixMode(MatrixMode.Modelview);
                 GL.LoadIdentity();
@@ -160,29 +192,76 @@ namespace CRYLAB
                 GL.LoadIdentity();
 
                 PlotPicker();
+                GL.Color4(colors[0]);
+                GL.Begin(PrimitiveType.Lines);
+                GL.Vertex3(extents[0], 0, 0);
+                GL.Vertex3(extents[1], 0, 0);
+                GL.Vertex3(0, extents[2], 0);
+                GL.Vertex3(0, extents[3], 0);
+                GL.Vertex3(0, 0, extents[4]);
+                GL.Vertex3(0, 0, extents[5]);
+                GL.End();
 
                 ((GameWindow)sender).SwapBuffers();
+
             }
         }
         
         void game_UpdateFrame(object sender, FrameEventArgs e)
         {
+            GameWindow game = (GameWindow)sender;
             if (!isPaused)
             {
-                GameWindow game = (GameWindow)sender;
-                width = game.Width;
-                height = game.Height;
                 if (game.Keyboard[Key.Escape])
                 {
                     game.Exit();
                 }
+
+                if (grabScreenshot)
+                {
+                    if (GraphicsContext.CurrentContext == null) throw new GraphicsContextMissingException();
+                    screenshot = new Bitmap(game.ClientSize.Width, game.ClientSize.Height);
+                    System.Drawing.Imaging.BitmapData data = screenshot.LockBits(game.ClientRectangle, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+                    GL.ReadPixels(0, 0, game.ClientSize.Width, game.ClientSize.Height, PixelFormat.Bgr, PixelType.UnsignedByte, data.Scan0);
+                    screenshot.UnlockBits(data);
+
+                    screenshot.RotateFlip(RotateFlipType.RotateNoneFlipY);
+                    grabScreenshot = false;
+                }
+
+                if (fieldLineStyle == FieldLineStyle.Single && mouseChanged)
+                {
+                    mouseChanged = false;
+                    calcFieldLinesThread = new Thread(GrabFieldLinesFromMouse);
+                    calcFieldLinesThread.Start();
+                }
+            }
+
+            if (exitGame)
+            {
+                game.Exit();
             }
         }
         
         void game_Resize(object sender, EventArgs e)
         {
             GameWindow game = (GameWindow)sender;
-            GL.Viewport(0, 0, game.Width, game.Height);
+            if (game.Width * (gameHeight / gameWidth) < game.Height)
+            {
+                viewX0 = (game.Width - (int)(game.Height * gameWidth / gameHeight)) / 2;
+                viewY0 = 0;
+                viewWidth = (int)(game.Height * gameWidth / gameHeight);
+                viewHeight = game.Height;
+                GL.Viewport(viewX0, 0, viewWidth, game.Height);
+            }
+            else
+            {
+                viewX0 = 0;
+                viewY0 = (int)(game.Height - (int)(game.Width * (gameHeight / gameWidth))) / 2;
+                viewWidth = game.Width;
+                viewHeight = (int)(game.Width * (gameHeight / gameWidth));
+                GL.Viewport(0, viewY0, game.Width, viewHeight);
+            }
         }
         
         void game_Load(object sender, EventArgs e)
@@ -205,27 +284,18 @@ namespace CRYLAB
                     break;
                 case PlotStyle.Directions:
                     RenderVectorField();
-                    switch (fieldLines)
-                    {
-                        case FieldLines.Single:
-                            RenderSingleFieldLines();
-                            break;
-                        case FieldLines.Full:
-                            RenderFullFieldLines();
-                            break;
-                    }
                     break;
                 case PlotStyle.Curl:
                     RenderVectorField();
-                    switch (fieldLines)
-                    {
-                        case FieldLines.Single:
-                            RenderSingleFieldLines();
-                            break;
-                        case FieldLines.Full:
-                            RenderFullFieldLines();
-                            break;
-                    }
+                    break;
+            }
+            switch (fieldLineStyle)
+            {
+                case FieldLineStyle.Single:
+                    RenderSingleFieldLines();
+                    break;
+                case FieldLineStyle.Full:
+                    RenderFullFieldLines();
                     break;
             }
         }
@@ -235,43 +305,48 @@ namespace CRYLAB
             Pause();
             SetPlotInfo(superCell, plotStyle);
             UnPause();
-        }
-        
-        public void PlotWithFieldLines(SuperCell superCell, PlotStyle PlotStyle, FieldLines FieldLines, double density)
-        {
-            currentCell = superCell;
-            plotStyle = PlotStyle;
-            fieldLines = FieldLines;
-            fieldLineDensity = density;
-            if (!isRunning)
-            {
-                PlotInit();
-                isRunning = true;
-            }
-            throw new NotImplementedException();
-        }// Unfinished!
-
-        private void SetPlotInfo(SuperCell superCell, PlotStyle thisPlotStyle)
-        {
-            currentCell = superCell;
-            plotStyle = thisPlotStyle;
-            fieldLines = FieldLines.None;
-            miscInfo = new MiscInfo();
-            displayList = new List<Vector3d>();
-            extents = new double[] { double.MaxValue, double.MinValue, double.MaxValue, double.MinValue, double.MaxValue, double.MinValue };
-            target = new Vector3d(0.0, 0.0, 0.0);
-            up = new Vector3d(0.0, 1.0, 0.0);
-            right = new Vector3d(1.0, 0.0, 0.0);
-            rotationLocked = false;
-            theta = 0.0;
-            phi = -Math.PI / 2;
-
             if (!isRunning)
             {
                 runGameThread = new Thread(PlotInit);
                 runGameThread.Start();
                 isRunning = true;
             }
+        }
+        
+        public void PlotWithFieldLines(SuperCell superCell, PlotStyle plotStyle, FieldLineStyle fieldLines, double density)
+        {
+            Pause();
+            SetPlotInfo(superCell, plotStyle);
+            this.fieldLineStyle = fieldLines;
+            fieldLineList = new List<FieldLine>();
+            fieldLineList.Add(new FieldLine());
+            if (fieldLines == FieldLineStyle.Full) GrabAllFieldLines();
+            UnPause();
+            if (!isRunning)
+            {
+                runGameThread = new Thread(PlotInit);
+                runGameThread.Start();
+                isRunning = true;
+            }
+        }
+
+        private void SetPlotInfo(SuperCell superCell, PlotStyle thisPlotStyle)
+        {
+            currentCell = superCell;
+            plotStyle = thisPlotStyle;
+            fieldLineStyle = FieldLineStyle.None;
+            miscInfo = new MiscInfo();
+            displayList = new List<Vector3d>();
+            extents = new double[] { double.MaxValue, double.MinValue, double.MaxValue, double.MinValue, double.MaxValue, double.MinValue };
+            target = new Vector3d(0.0, 0.0, 0.0);
+            up = new Vector3d(0.0, 1.0, 0.0);
+            right = new Vector3d(1.0, 0.0, 0.0);
+            Vector<double> tempPlaneNormal = Calculator.CrossProduct(superCell.latticeVectors.Column(0), superCell.latticeVectors.Column(1));
+            miscInfo.planeNormal = new Vector3d(tempPlaneNormal[0], tempPlaneNormal[1], tempPlaneNormal[2]);
+            miscInfo.pointOnPlane = new Vector3d(superCell.centroids.Row(0)[0], superCell.centroids.Row(0)[1], superCell.centroids.Row(0)[2]);
+            rotationLocked = false;
+            theta = 0.0;
+            phi = -Math.PI / 2;
             switch (plotStyle)
             {
                 case PlotStyle.Molecules:
@@ -320,32 +395,10 @@ namespace CRYLAB
                     }
                     break;
                 case PlotStyle.Directions:
-                    for (int i = 0; i < superCell.centroids.RowCount; i++)
-                    {
-                        Vector<double> tempCentroid = superCell.centroids.Row(i);
-                        Vector3d centroid = new Vector3d(tempCentroid[0], tempCentroid[1], tempCentroid[2]);
-                        extents = Calculator.UpdateExtents(extents, centroid);
-                        target += centroid;
-                        displayList.Add(centroid);
-                        Vector<double> direction = superCell.directions.Row(i);
-                        displayList.Add(new Vector3d(direction[0], direction[1], direction[2]));
-                    }
+                    GrabDirections(superCell,false);
                     break;
                 case PlotStyle.Curl:
-                    if (superCell.curls == null)
-                    {
-                        superCell.curls = Calculator.CalculateCurls(superCell);
-                    }
-                    for (int i = 0; i < superCell.centroids.RowCount; i++)
-                    {
-                        Vector<double> tempCentroid = superCell.centroids.Row(i);
-                        Vector3d centroid = new Vector3d(tempCentroid[0], tempCentroid[1], tempCentroid[2]);
-                        extents = Calculator.UpdateExtents(extents, centroid);
-                        target += centroid;
-                        displayList.Add(centroid);
-                        Vector<double> curls = superCell.curls.Row(i);
-                        displayList.Add(new Vector3d(curls[0], curls[1], curls[2]));
-                    }
+                    GrabDirections(superCell,true);
                     break;
             }
             target /= (double)displayList.Count;
@@ -356,6 +409,7 @@ namespace CRYLAB
             eye = new Vector3d(target.X, target.Y, depthClipPlane * 2.0);
             r = (eye - target).Length;
         }
+
         public void Pause()
         {
             isPaused = true;
@@ -365,6 +419,22 @@ namespace CRYLAB
         {
             isPaused = false;
         }
+
+        public void Exit()
+        {
+            exitGame = true;
+        }
+
+        public Bitmap Screenshot()
+        {
+            if (isRunning)
+            {
+                grabScreenshot = true;
+                while (grabScreenshot) ;
+                return screenshot;
+            }
+            else return null;
+        }
         
         public void UpdateView()
         {
@@ -372,6 +442,150 @@ namespace CRYLAB
             eye = target + displacement;
             right = new Vector3d(-Math.Sin(phi), Math.Cos(phi), 0.0);
             up = -Vector3d.Normalize(Vector3d.Cross(right, displacement));
+        }
+
+        public void GrabDirections(SuperCell superCell, bool curls)
+        {
+            double multiplier;
+            if (superCell.isParent) multiplier = 10;
+            else multiplier = 100;
+            for (int i = 0; i < superCell.centroids.RowCount; i++)
+            {
+                Vector<double> tempCentroid = superCell.centroids.Row(i);
+                Vector3d centroid = new Vector3d(tempCentroid[0], tempCentroid[1], tempCentroid[2]);
+                extents = Calculator.UpdateExtents(extents, centroid);
+                Vector<double> tempDirection;
+                if (curls)
+                {
+                    if (superCell.isParent)
+                    {
+                        tempDirection = superCell.curls.Row(i);
+                    }
+                    else
+                    {
+                        tempDirection = superCell.curls.Row(i) - superCell.parent.curls.Row(i);
+                    }
+                }
+                else
+                {
+                    if (superCell.isParent)
+                    {
+                        tempDirection = superCell.directions.Row(i);
+                    }
+                    else
+                    {
+                        tempDirection = superCell.directions.Row(i) - superCell.parent.directions.Row(i);
+                    }
+                }
+                Vector3d direction = new Vector3d(tempDirection[0], tempDirection[1], tempDirection[2]);
+                target += 2 * centroid;
+                displayList.Add(centroid - 0.5 * direction * multiplier);
+                displayList.Add(centroid + 0.5 * direction * multiplier);
+            }
+        }
+
+        public Vector<double> ProjectToPlane(int x, int y)
+        {
+            double X = (double)x - (double)viewWidth / 2.0;
+            double Y = (double)viewHeight / 2.0 - (double)y;
+
+            X += viewX0;
+            Y += viewY0;
+
+            X *= gameWidth / (double)viewWidth;
+            Y *= gameHeight / (double)viewHeight;
+
+            Vector3d screenPoint = eye + right * X + up * Y;
+            Vector3d lineDirection = eye-target;
+            Vector3d POI = lineDirection * (Vector3d.Dot(miscInfo.pointOnPlane - screenPoint, miscInfo.planeNormal) / Vector3d.Dot(lineDirection, miscInfo.planeNormal)) + screenPoint;
+
+            return DenseVector.OfArray(new double[] { POI[0], POI[1], POI[2] });
+        }
+
+        public void GrabFieldLinesFromMouse()
+        {
+            Vector<double> seed = ProjectToPlane(mouseX, mouseY);
+            pauseFieldLines = true;
+            if (currentCell.isParent)
+            {
+                if (plotStyle == PlotStyle.Curl)
+                {
+                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.curls, seed, currentCell, 5.0);
+                }
+                else
+                {
+                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions, seed, currentCell, 5.0);
+                }
+            }
+            else
+            {
+                if (plotStyle == PlotStyle.Curl)
+                {
+                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.curls - currentCell.parent.directions, seed, currentCell, 5.0);
+                }
+                else 
+                {
+                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions-currentCell.parent.directions, seed, currentCell, 5.0);
+                }
+            }
+            pauseFieldLines = false;
+        }
+
+        public void GrabAllFieldLines()
+        {
+            double max = double.MinValue;
+            double min = double.MaxValue;
+            FieldLine currentFieldLine;
+            for (int i = 0; i < currentCell.centroids.RowCount; i++)
+            {
+                pauseFieldLines = true;
+                if (currentCell.isParent)
+                {
+                    if (plotStyle == PlotStyle.Curl)
+                    {
+                        currentFieldLine = Calculator.GetFieldLine(currentCell.curls, currentCell.centroids.Row(i), currentCell, 5.0);
+                    }
+                    else
+                    {
+                        currentFieldLine = Calculator.GetFieldLine(currentCell.directions, currentCell.centroids.Row(i), currentCell, 5.0);
+
+                    }
+                }
+                else
+                {
+                    if (plotStyle == PlotStyle.Curl)
+                    {
+                        currentFieldLine = Calculator.GetFieldLine(currentCell.curls - currentCell.parent.curls, currentCell.centroids.Row(i), currentCell, 5.0);
+                    }
+                    else
+                    {
+                        currentFieldLine = Calculator.GetFieldLine(currentCell.directions - currentCell.parent.directions, currentCell.centroids.Row(i), currentCell, 5.0);
+                    }
+                }
+                fieldLineList.Add(currentFieldLine);
+                if (currentFieldLine.Strength.Min() != 0)
+                {
+                    max = Math.Max(currentFieldLine.Strength.Max(), max);
+                    min = Math.Min(currentFieldLine.Strength.Min(), min);
+                }
+                mainForm.progressBar.Value = (int)(100.0 * (i+1) / currentCell.centroids.RowCount);
+            }
+            double logMin = Math.Log(min);
+            double range = Math.Log(max) - logMin;
+            foreach (FieldLine fieldLine in fieldLineList)
+            {
+                for (int i = 0; i < fieldLine.Count; i++)
+                {
+                    if (fieldLine.Strength[i] == 0) fieldLine.Colors.Add(new Color4(0f, 0f, 1f, 1f));
+                    else
+                    {
+                        double ratio = (Math.Log(fieldLine.Strength[i]) - logMin) / range;
+                        fieldLine.Colors.Add(new Color4((float)ratio, 0f, (float)(1 - ratio), 1f));
+                    }
+                }
+            }
+            mainForm.progressBar.Value = 100;
+            pauseFieldLines = false;
         }
         
         private void RenderMolecules()
@@ -420,17 +634,74 @@ namespace CRYLAB
         
         private void RenderVectorField()
         {
-            throw new NotImplementedException();
+            GL.MatrixMode(MatrixMode.Projection);
+            GL.Ortho(-(gameWidth) / 2.0, (gameWidth) / 2.0, -(gameHeight) / 2.0, (gameHeight) / 2.0, 0, depthClipPlane * 5);
+            GL.MatrixMode(MatrixMode.Modelview);
+            Matrix4d lookAt = Matrix4d.LookAt(eye, target, up);
+            GL.LoadMatrix(ref lookAt);
+
+            GL.Begin(PrimitiveType.Lines);
+            for (int i = 0; i < displayList.Count; i += 2)
+            {
+                GL.Color4(colors[1]);
+                if (isPaused) break;
+                GL.Vertex3(displayList[i]);
+                GL.Color4(colors[0]);
+                if (isPaused)
+                {
+                    GL.Vertex3(0, 0, 0);
+                    break;
+                }
+                GL.Vertex3(displayList[i + 1]);
+            }
+            GL.End();            
         }
-        
+
         private void RenderSingleFieldLines()
         {
-            throw new NotImplementedException();
+            if (isPaused) return;
+            if (pauseFieldLines) return;
+            if (fieldLineList.Count == 0) return;
+            GL.Begin(PrimitiveType.LineStrip);
+            foreach (Vector3d point in fieldLineList[0])
+            {
+                GL.Vertex3(point);
+                if (isPaused) break;
+                if (pauseFieldLines) break;
+            }
+            GL.End();
         }
         
         private void RenderFullFieldLines()
         {
-            throw new NotImplementedException();
+            if (isPaused) return;
+            if (pauseFieldLines) return;
+            if (fieldLineList.Count == 0) return;
+            bool breakout = false;
+
+            foreach (FieldLine line in fieldLineList)
+            {
+                if (pauseFieldLines) break;
+                GL.Begin(PrimitiveType.LineStrip);
+                for (int i = 0; i < line.Count(); i++ )
+                {
+                    if (pauseFieldLines)
+                    {
+                        breakout = true;
+                        break;
+                    }
+                    GL.Color4(line.Colors[i]);
+                    if (pauseFieldLines)
+                    {
+                        breakout = true;
+                        break;
+                    }
+                    GL.Vertex3(line[i]);
+                }
+                GL.End();
+                if (pauseFieldLines || breakout) break;
+            }
         }
     }
 }
+
