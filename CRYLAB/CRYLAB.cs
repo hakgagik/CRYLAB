@@ -20,6 +20,8 @@ namespace CRYLAB
         public List<SuperCell> superList;
         public Plotter plotter;
 
+        public MousePositionFormat mousePositionFormat = MousePositionFormat.Fractional;
+
         public CRYLAB()
         {
             InitializeComponent();
@@ -27,6 +29,11 @@ namespace CRYLAB
 
         private void LoadParent()
         {
+            if (parent != null)
+            {
+                DialogResult msgResult = MessageBox.Show("This will clear all current supercells. Are you sure?", "Load new parent", MessageBoxButtons.YesNo);
+                if (msgResult == DialogResult.No) return;
+            }
             openFileDialog.Multiselect = false;
             AtomsPerCellDialog dlg = new AtomsPerCellDialog();
             DialogResult result = dlg.ShowDialog();
@@ -50,13 +57,13 @@ namespace CRYLAB
                     }
                     else
                     {
+                        superList.Clear();
+                        childListBox.Items.Clear();
                         baseStructureTextBox.Text = Path.GetFileNameWithoutExtension(parent.filePath);
                         browseChildrenButton.Enabled = true;
                         cloneButton.Enabled = true;
                         removeSelectedButton.Enabled = true;
                         plotParentButton.Enabled = true;
-                        plotSelectedButton.Enabled = true;
-                        plotNextButton.Enabled = true;
                         childStructuresToolStripMenuItem.Enabled = true;
                     }
                 }
@@ -81,6 +88,11 @@ namespace CRYLAB
                 foreach (SuperCell child in newChildren)
                 {
                     childListBox.Items.Add(Path.GetFileNameWithoutExtension(child.filePath));
+                }
+                if (childListBox.Items.Count > 0)
+                {
+                    plotSelectedButton.Enabled = true;
+                    plotNextButton.Enabled = true;
                 }
             }
         }
@@ -152,7 +164,7 @@ namespace CRYLAB
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            
+            Screenshot();
         }
 
         private void baseStructureToolStripMenuItem_Click(object sender, EventArgs e)
@@ -167,8 +179,61 @@ namespace CRYLAB
 
         private void structureMatFileToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            //if (plotter.isRunning)
-            //    plotter.Pause();
+            //if (superList.Count == 0) return;
+            //List<double> displacementNorms = new List<double>();
+            //MathNet.Numerics.LinearAlgebra.Matrix<double> displacements = superList[0].centroids - superList[0].parent.centroids;
+            //for (int i = 0; i < displacements.RowCount; i++)
+            //{
+            //    displacementNorms.Add(displacements.Row(i).L2Norm());
+            //}
+
+            //using (StreamWriter file = new StreamWriter(@"C:\Users\Gago\Desktop\displacementNorms.txt"))
+            //{
+            //    for (int i = 0; i < displacementNorms.Count; i++)
+            //    {
+            //        file.WriteLine(displacementNorms[i]);
+            //    }
+            //}
+
+            //List<MathNet.Numerics.LinearAlgebra.Matrix<double>> E = superList[0].FirstOrderStrain();
+
+            //using (StreamWriter file = new StreamWriter(@"C:\Users\Gago\Desktop\firstOrderStrain.txt"))
+            //{
+            //    for (int i = 0; i < E.Count; i++)
+            //    {
+            //        string line = "";
+            //        for (int j = 0; j < 3; j++)
+            //        {
+            //            for (int k = 0; k < 3; k++)
+            //            {
+            //                line += " " + E[i][j, k];
+            //            }
+            //        }
+            //        file.WriteLine(line);
+            //    }
+            //}
+
+            //List<MathNet.Numerics.LinearAlgebra.Matrix<double>> T = superList[0].totalDirectionDerivatives;
+
+            //using (StreamWriter file = new StreamWriter(@"C:\Users\Gago\Desktop\torqueGradient.txt"))
+            //{
+            //    for (int i = 0; i < E.Count; i++)
+            //    {
+            //        string line = "";
+            //        MathNet.Numerics.LinearAlgebra.Matrix<double> blah = T[i];
+            //        blah += blah.Transpose();
+            //        blah /= 2.0;
+            //        for (int j = 0; j < 3; j++)
+            //        {
+            //            for (int k = 0; k < 3; k++)
+            //            {
+            //                line += " " + blah[j, k];
+            //            }
+            //        }
+            //        file.WriteLine(line);
+            //    }
+            //}
+            
         }
 
         private void browseParentButton_Click(object sender, EventArgs e)
@@ -241,10 +306,16 @@ namespace CRYLAB
                     count++;
                 }
             }
+            if (childListBox.Items.Count == 0)
+            {
+                plotNextButton.Enabled = false;
+                plotSelectedButton.Enabled = false;
+            }
         }
 
         private void plotNextButton_Click(object sender, EventArgs e)
         {
+            if (childListBox.Items.Count == 0) return;
             if (childListBox.SelectedIndices.Count == 0) childListBox.SelectedIndex = childListBox.Items.Count - 1;
             if (childListBox.SelectedIndices.Count == 1 && childListBox.SelectedIndex < (childListBox.Items.Count - 1))
             {
@@ -294,6 +365,14 @@ namespace CRYLAB
             EditPlotOptions();
         }
 
+        private void testButton_Click(object sender, EventArgs e)
+        {
+            if (parent != null)
+            {
+                parent.Dislocate(DenseVector.OfArray(new double[] { 19, 25, 0 }), DenseVector.OfArray(new double[] { 0, 0, 1 }), DenseVector.OfArray(new double[] { 0, 0, 1 }), DenseVector.OfArray(new double[] { 1, 0, 0 }), 5.0);
+                //parent.Dislocate(DenseVector.OfArray(new double[] { 29, 25, 0 }), DenseVector.OfArray(new double[] { 0, 0, 1 }), DenseVector.OfArray(new double[] { 0, 0, -1 }), DenseVector.OfArray(new double[] { 1, 0, 0 }), 5.0);
+            }
+        }
     }
 }
 

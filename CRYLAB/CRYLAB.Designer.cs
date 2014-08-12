@@ -40,6 +40,12 @@
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.plotOptionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.calculateToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.createToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.dislocationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.manualDislocationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.drawDislocationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.frankReadSourceToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.manualDistortionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openFileDialog = new System.Windows.Forms.OpenFileDialog();
             this.childListBox = new System.Windows.Forms.ListBox();
             this.baseStructureTextBox = new System.Windows.Forms.TextBox();
@@ -67,6 +73,8 @@
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.progressLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.progressBar = new System.Windows.Forms.ToolStripProgressBar();
+            this.mousePositionLabel = new System.Windows.Forms.ToolStripStatusLabel();
+            this.testButton = new System.Windows.Forms.Button();
             this.menuStrip.SuspendLayout();
             this.panel1.SuspendLayout();
             this.panel2.SuspendLayout();
@@ -80,7 +88,8 @@
             this.menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.fileToolStripMenuItem,
             this.editToolStripMenuItem,
-            this.calculateToolStripMenuItem});
+            this.calculateToolStripMenuItem,
+            this.createToolStripMenuItem});
             this.menuStrip.Location = new System.Drawing.Point(0, 0);
             this.menuStrip.Name = "menuStrip";
             this.menuStrip.Size = new System.Drawing.Size(584, 24);
@@ -104,7 +113,7 @@
             this.toolStripSeparator1,
             this.structureMatFileToolStripMenuItem});
             this.loadToolStripMenuItem.Name = "loadToolStripMenuItem";
-            this.loadToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.loadToolStripMenuItem.Size = new System.Drawing.Size(138, 22);
             this.loadToolStripMenuItem.Text = "Load";
             // 
             // baseStructureToolStripMenuItem
@@ -141,7 +150,7 @@
             // 
             this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
             this.saveToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
-            this.saveToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.saveToolStripMenuItem.Size = new System.Drawing.Size(138, 22);
             this.saveToolStripMenuItem.Text = "Save";
             this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
             // 
@@ -156,7 +165,7 @@
             // plotOptionsToolStripMenuItem
             // 
             this.plotOptionsToolStripMenuItem.Name = "plotOptionsToolStripMenuItem";
-            this.plotOptionsToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.plotOptionsToolStripMenuItem.Size = new System.Drawing.Size(140, 22);
             this.plotOptionsToolStripMenuItem.Text = "Plot Options";
             this.plotOptionsToolStripMenuItem.Click += new System.EventHandler(this.plotOptionsToolStripMenuItem_Click);
             // 
@@ -165,6 +174,49 @@
             this.calculateToolStripMenuItem.Name = "calculateToolStripMenuItem";
             this.calculateToolStripMenuItem.Size = new System.Drawing.Size(68, 20);
             this.calculateToolStripMenuItem.Text = "Calculate";
+            // 
+            // createToolStripMenuItem
+            // 
+            this.createToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.dislocationToolStripMenuItem,
+            this.frankReadSourceToolStripMenuItem,
+            this.manualDistortionToolStripMenuItem});
+            this.createToolStripMenuItem.Name = "createToolStripMenuItem";
+            this.createToolStripMenuItem.Size = new System.Drawing.Size(53, 20);
+            this.createToolStripMenuItem.Text = "Create";
+            // 
+            // dislocationToolStripMenuItem
+            // 
+            this.dislocationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.manualDislocationToolStripMenuItem,
+            this.drawDislocationToolStripMenuItem});
+            this.dislocationToolStripMenuItem.Name = "dislocationToolStripMenuItem";
+            this.dislocationToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
+            this.dislocationToolStripMenuItem.Text = "Dislocation";
+            // 
+            // manualDislocationToolStripMenuItem
+            // 
+            this.manualDislocationToolStripMenuItem.Name = "manualDislocationToolStripMenuItem";
+            this.manualDislocationToolStripMenuItem.Size = new System.Drawing.Size(114, 22);
+            this.manualDislocationToolStripMenuItem.Text = "Manual";
+            // 
+            // drawDislocationToolStripMenuItem
+            // 
+            this.drawDislocationToolStripMenuItem.Name = "drawDislocationToolStripMenuItem";
+            this.drawDislocationToolStripMenuItem.Size = new System.Drawing.Size(114, 22);
+            this.drawDislocationToolStripMenuItem.Text = "Draw";
+            // 
+            // frankReadSourceToolStripMenuItem
+            // 
+            this.frankReadSourceToolStripMenuItem.Name = "frankReadSourceToolStripMenuItem";
+            this.frankReadSourceToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
+            this.frankReadSourceToolStripMenuItem.Text = "Frank-Read Source";
+            // 
+            // manualDistortionToolStripMenuItem
+            // 
+            this.manualDistortionToolStripMenuItem.Name = "manualDistortionToolStripMenuItem";
+            this.manualDistortionToolStripMenuItem.Size = new System.Drawing.Size(173, 22);
+            this.manualDistortionToolStripMenuItem.Text = "Manual Distortion";
             // 
             // openFileDialog
             // 
@@ -411,7 +463,8 @@
             // 
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.progressLabel,
-            this.progressBar});
+            this.progressBar,
+            this.mousePositionLabel});
             this.statusStrip.Location = new System.Drawing.Point(0, 539);
             this.statusStrip.Name = "statusStrip";
             this.statusStrip.Size = new System.Drawing.Size(584, 22);
@@ -429,11 +482,28 @@
             this.progressBar.Name = "progressBar";
             this.progressBar.Size = new System.Drawing.Size(100, 16);
             // 
+            // mousePositionLabel
+            // 
+            this.mousePositionLabel.Name = "mousePositionLabel";
+            this.mousePositionLabel.Size = new System.Drawing.Size(92, 17);
+            this.mousePositionLabel.Text = "Mouse Position:";
+            // 
+            // testButton
+            // 
+            this.testButton.Location = new System.Drawing.Point(16, 82);
+            this.testButton.Name = "testButton";
+            this.testButton.Size = new System.Drawing.Size(75, 23);
+            this.testButton.TabIndex = 15;
+            this.testButton.Text = "Test";
+            this.testButton.UseVisualStyleBackColor = true;
+            this.testButton.Click += new System.EventHandler(this.testButton_Click);
+            // 
             // CRYLAB
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(584, 561);
+            this.Controls.Add(this.testButton);
             this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.panel2);
             this.Controls.Add(this.panel1);
@@ -502,6 +572,14 @@
         private System.Windows.Forms.StatusStrip statusStrip;
         public System.Windows.Forms.ToolStripStatusLabel progressLabel;
         public System.Windows.Forms.ToolStripProgressBar progressBar;
+        public System.Windows.Forms.ToolStripStatusLabel mousePositionLabel;
+        private System.Windows.Forms.ToolStripMenuItem createToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem dislocationToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem manualDislocationToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem drawDislocationToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem frankReadSourceToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem manualDistortionToolStripMenuItem;
+        private System.Windows.Forms.Button testButton;
     }
 }
 

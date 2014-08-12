@@ -44,11 +44,20 @@ namespace CRYLAB
 
 
     }
+
     public struct Extensions
     {
         public static string Images = "Portable Network Graphics|*.png|JPEG|*.jpg|GIF|*.gif|Bitmap|*.bmp";
         public static string Mol2 = "Mol2 Files|*.mol2";
     }
+
+    public enum MousePositionFormat
+    {
+        Cartesian,
+        Fractional,
+        Screen
+    }
+
     static class Calculator
     {
         public static List<SuperCell> BatchImport(string[] filenames, SuperCell parent, CRYLAB form)
@@ -146,11 +155,11 @@ namespace CRYLAB
             Vector<double> currentPoint = seed;
             if (GetForce(directions, superCell, seed, std, 1.0) != null)
             {
-                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), GetForce(directions, superCell, seed, std, 1.0).L2Norm());
+                forwardList.Add(Num2TK(currentPoint), GetForce(directions, superCell, seed, std, 1.0).L2Norm());
             }
             else
             {
-                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), 0);
+                forwardList.Add(Num2TK(currentPoint), 0);
             }
             Vector<double> previousForce;
             Vector<double> currentForce = DenseVector.Create(3, 0);
@@ -167,7 +176,7 @@ namespace CRYLAB
                 if (currentForce == null) break;
                 displacement = currentForce * multiplier;
                 currentPoint = previousPoint + displacement;
-                forwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]), currentForce.L2Norm());
+                forwardList.Add(Num2TK(currentPoint), currentForce.L2Norm());
                 acceleration = (currentForce - previousForce).L2Norm() / displacement.L2Norm();
                 multiplier = UpdateMultiplier(acceleration);
                 if (multiplier > 50) break;
@@ -183,7 +192,7 @@ namespace CRYLAB
                 if (currentForce == null) break;
                 displacement = currentForce * multiplier;
                 currentPoint = previousPoint + displacement;
-                backwardList.Add(new Vector3d(currentPoint[0], currentPoint[1], currentPoint[2]),currentForce.L2Norm());
+                backwardList.Add(Num2TK(currentPoint),currentForce.L2Norm());
                 acceleration = (currentForce - previousForce).L2Norm() / displacement.L2Norm();
                 multiplier = UpdateMultiplier(acceleration);
                 if (multiplier > 50) break;
@@ -239,6 +248,36 @@ namespace CRYLAB
             return nearbyPoints;
         }
 
+        public static double Interpolate(List<int> nearbyPoints, Vector<double> values, SuperCell superCell, Vector<double> point, double std)
+        {
+            double result = 0;
+            double weight;
+            double weights = 0;
+
+            for (int i = 0; i < nearbyPoints.Count; i++)
+            {
+                Vector<double> position = superCell.centroids.Row(nearbyPoints[i]);
+                if (!superCell.isParent)
+                {
+                    Vector<double> disposition /*lol*/ = position - superCell.parent.centroids.Row(nearbyPoints[i]);
+                    for (int dim = 0; dim < 3; dim++)
+                    {
+                        disposition[dim] %= 1;
+                        if (disposition[dim] >= 0.5) disposition[dim]--;
+                        else if (disposition[dim] <= -0.05) disposition[dim]++;
+                    }
+                    position = disposition + superCell.parent.centroids.Row(nearbyPoints[i]);
+                }
+
+                Vector<double> displacement = position - point;
+
+                weight = Math.Exp(-displacement.DotProduct(displacement) / (2.0 * std));
+                weights += weight;
+                result += values[nearbyPoints[i]] * weight;
+            }
+            return result / weights;
+        }
+
         public static Vector<double> Interpolate(List<int> nearbyPoints, Matrix<double> vectors, SuperCell superCell, Vector<double> point, double std)
         {
             Vector<double> force = DenseVector.Create(3, 0);
@@ -246,9 +285,22 @@ namespace CRYLAB
             double weights = 0;
             for (int i = 0; i < nearbyPoints.Count; i++)
             {
-                Vector<double> blah = superCell.centroids.Row(nearbyPoints[i]);
-                double displacement = (superCell.centroids.Row(nearbyPoints[i]) - point).L2Norm();
-                weight = Math.Exp(-displacement * displacement / (2 * std));
+                Vector<double> position = superCell.centroids.Row(nearbyPoints[i]);
+                if (!superCell.isParent)
+                {
+                    Vector<double> disposition /*lol*/ = position - superCell.parent.centroids.Row(nearbyPoints[i]);
+                    for (int dim = 0; dim < 3; dim++)
+                    {
+                        disposition[dim] %= 1;
+                        if (disposition[dim] >= 0.5) disposition[dim]--;
+                        else if (disposition[dim] <= -0.05) disposition[dim]++;
+                    }
+                    position = disposition + superCell.parent.centroids.Row(nearbyPoints[i]);
+                }
+
+                Vector<double> displacement = position - point;
+
+                weight = Math.Exp(-displacement.DotProduct(displacement) / (2.0 * std));
                 weights += weight;
                 force += vectors.Row(nearbyPoints[i]) * weight;
             }

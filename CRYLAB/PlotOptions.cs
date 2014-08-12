@@ -58,7 +58,9 @@ namespace CRYLAB
             if (result == DialogResult.OK)
             {
                 button.BackColor = colorDialog.Color;
+                applyButton.Enabled = true;
             }
+            
         }
 
         private void backgroundButton_Click(object sender, EventArgs e)
@@ -126,7 +128,7 @@ namespace CRYLAB
             ChangeColor((Button)sender);
         }
 
-        private void okButton_Click(object sender, EventArgs e)
+        private void applyButton_Click(object sender, EventArgs e)
         {
             plotter.bgColor = backgroundButton.BackColor;
             for (int i = 0; i < 2; i++)
@@ -137,6 +139,39 @@ namespace CRYLAB
             {
                 plotter.molColors[i] = atomColors[i].BackColor;
             }
+            if (fractionalRadioButton.Checked)
+            {
+                ((CRYLAB)Owner).mousePositionFormat = MousePositionFormat.Fractional;
+            }
+            else if (cartesianRadioButton.Checked)
+            {
+                ((CRYLAB)Owner).mousePositionFormat = MousePositionFormat.Cartesian;
+            }
+            else
+            {
+                ((CRYLAB)Owner).mousePositionFormat = MousePositionFormat.Screen;
+            }
+            applyButton.Enabled = false;
+        }
+
+        private void closeButton_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void fractionalRadioButton_CheckedChanged(object sender, EventArgs e)
+        {
+            applyButton.Enabled = true;
+        }
+
+        private void cartesianRadioButton_CheckedChanged(object sender, EventArgs e)
+        {
+            applyButton.Enabled = true;
+        }
+
+        private void screenRadioButton_CheckedChanged(object sender, EventArgs e)
+        {
+            applyButton.Enabled = true;
         }
     }
 }

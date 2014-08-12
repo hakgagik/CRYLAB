@@ -43,6 +43,14 @@ namespace CRYLAB
                 }
             }
         }
+
+        public void Translate(Vector<double> displacement)
+        {
+            centroid += displacement;
+            atoms.SetColumn(0, atoms.Column(0) + displacement[0]);
+            atoms.SetColumn(1, atoms.Column(1) + displacement[1]);
+            atoms.SetColumn(2, atoms.Column(2) + displacement[2]);
+        }
     }
     public class Node
     {
@@ -156,7 +164,7 @@ namespace CRYLAB
         public Matrix<double> centroids;
         public Matrix<double> directions;
         public Matrix<double> curls;
-        public Matrix<double>[] totalDerivatives;
+        public List<Matrix<double>> totalDirectionDerivatives;
 
         public string filePath;
         public bool isError;
@@ -264,7 +272,7 @@ namespace CRYLAB
                 count++;
             }
 
-            superCell.CalculateDerivatives();
+            superCell.CalculateDirectionDerivatives();
 
             return superCell;
         }
@@ -503,7 +511,7 @@ namespace CRYLAB
             {
                 for (int i = 0; i < 3; i++)
                 {
-                    tempA = (superCell.mols[0].centroid - superCell.mols[1].centroid).L2Norm();
+                    tempA = (superCell.mols[molsPerCell].centroid - superCell.mols[0].centroid).L2Norm();
                     double tempLatticeRatio = incompleteLattice[0, i] / tempA;
                     if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
                     {
@@ -511,7 +519,7 @@ namespace CRYLAB
                         superCell.superCellSize[i] = cellA;
                         superCell.latticeParams[0, i] = tempA;
                         cellDone[i] = true;
-                        superCell.latticeVectors.SetColumn(i, superCell.mols[1].centroid - superCell.mols[0].centroid);
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[molsPerCell].centroid - superCell.mols[0].centroid);
                         break;
                     }
 
@@ -530,7 +538,7 @@ namespace CRYLAB
                 for (int i = 0; i < 3; i++)
                 {
                     if (cellDone[i] == true) continue;
-                    tempB = (superCell.mols[0].centroid - superCell.mols[cellA].centroid).L2Norm();
+                    tempB = (superCell.mols[cellA*molsPerCell].centroid - superCell.mols[0].centroid).L2Norm();
                     double tempLatticeRatio = incompleteLattice[0, i] / tempB;
                     if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
                     {
@@ -538,7 +546,7 @@ namespace CRYLAB
                         superCell.superCellSize[i] = cellB;
                         superCell.latticeParams[0, i] = tempB;
                         cellDone[i] = true;
-                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA].centroid - superCell.mols[0].centroid);
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA*molsPerCell].centroid - superCell.mols[0].centroid);
                         break;
                     }
                 }
@@ -555,7 +563,7 @@ namespace CRYLAB
                 for (int i = 0; i < 3; i++)
                 {
                     if (cellDone[i] == true) continue;
-                    tempC = (superCell.mols[0].centroid - superCell.mols[cellA * cellB].centroid).L2Norm();
+                    tempC = (superCell.mols[cellA * cellB * molsPerCell].centroid - superCell.mols[0].centroid).L2Norm();
                     double tempLatticeRatio = incompleteLattice[0, i] / tempC;
                     if (Math.Abs(tempLatticeRatio - Math.Round(tempLatticeRatio)) < 0.001)
                     {
@@ -563,7 +571,7 @@ namespace CRYLAB
                         superCell.superCellSize[i] = cellC;
                         superCell.latticeParams[0, i] = tempC;
                         cellDone[i] = true;
-                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA*cellB].centroid - superCell.mols[0].centroid);
+                        superCell.latticeVectors.SetColumn(i, superCell.mols[cellA*cellB*molsPerCell].centroid - superCell.mols[0].centroid);
                         break;
                     }
                 }
@@ -581,7 +589,7 @@ namespace CRYLAB
             }
             #endregion
 
-            superCell.CalculateDerivatives();
+            superCell.CalculateDirectionDerivatives();
 
             return superCell;
         }
@@ -622,57 +630,102 @@ namespace CRYLAB
             return cVect;
         }
 
-        public void CalculateDerivatives()
+        public void CalculateDirectionDerivatives()
         {
             curls = DenseMatrix.Create(centroids.RowCount, 3, 0.0);
-            totalDerivatives = new Matrix<double>[curls.RowCount];
-            for (int i = 0; i < centroids.RowCount; i++)
-            {
-                Vector<double> point = centroids.Row(i);
-                List<int> nearbyPoints = Calculator.NearestNeighbors(point, this);
-                Vector<double> force = directions.Row(i);
-                Vector<double> ddx = DenseVector.Create(3, 0);
-                Vector<double> ddy = DenseVector.Create(3, 0);
-                Vector<double> ddz = DenseVector.Create(3, 0);
+            totalDirectionDerivatives = new List<Matrix<double>>();
 
-                int xCount = 0;
-                int yCount = 0;
-                int zCount = 0;
-                foreach (int j in nearbyPoints)
+            for (int point = 0; point < centroids.RowCount; point++)
+            {
+                Matrix<double> tempMatrix = DenseMatrix.Create(3, 3, 0);
+                List<int> neighbors = Calculator.NearestNeighbors(centroids.Row(point), this);
+                Matrix<double> divideBy = DenseMatrix.Create(3, 3, 0);
+                foreach (int neighbor in neighbors)
                 {
-                    if (i != j)
+                    if (neighbor != point)
                     {
-                        Vector<double> displacement = point - centroids.Row(j);
-                        if (displacement[0] > 0.001)
+                        for (int i = 0; i < 3; i++)
                         {
-                            ddx += (force - directions.Row(j)) / displacement[0];
-                            xCount++;
+                            for (int j = 0; j < 3; j++)
+                            {
+                                if (Math.Abs(centroids.Row(neighbor)[j] - centroids.Row(point)[j]) > 0.001)
+                                {
+                                    tempMatrix[i, j] += (directions.Row(neighbor)[i] - directions.Row(point)[i]) / (centroids.Row(neighbor)[j] - centroids.Row(point)[j]);
+                                    divideBy[i, j]++;
+                                }
+                            }
                         }
-                        if (displacement[1] > 0.001)
-                        {
-                            ddy += (force - directions.Row(j)) / displacement[1];
-                            yCount++;
-                        }
-                        if (displacement[2] > 0.01)
-                        {
-                            ddz += (force - directions.Row(j)) / displacement[2];
-                            zCount++;
-                        }
-                        
-                        
                     }
                 }
-                if (xCount > 0) ddx /= xCount;
-                if (yCount > 0) ddy /= yCount;
-                if (zCount > 0) ddz /= zCount;
-
-                totalDerivatives[i] = DenseMatrix.Create(3, 3, 0);
-                totalDerivatives[i].SetColumn(0, ddx);
-                totalDerivatives[i].SetColumn(1, ddy);
-                totalDerivatives[i].SetColumn(2, ddz);
-
-                curls.SetRow(i, new double[] { ddy[2] - ddz[0], ddz[0] - ddx[2], ddx[1] - ddy[0] });
+                tempMatrix.PointwiseDivide(divideBy);
+                curls.SetRow(point, DenseVector.OfArray(new double[] { tempMatrix[2, 1] - tempMatrix[1, 2], tempMatrix[0, 2] - tempMatrix[2, 0], tempMatrix[1, 0] - tempMatrix[0, 1] }));
+                totalDirectionDerivatives.Add(tempMatrix);
             }
+        }
+
+        public List<Matrix<double>> FirstOrderStrain()
+        {
+            Matrix<double> parentCentroids;
+            if (isParent) parentCentroids = centroids * latticeVectors.Inverse().Transpose();
+            else parentCentroids = parent.centroids * latticeVectors.Inverse().Transpose();
+            List<Matrix<double>> strainTensors = new List<Matrix<double>>();
+            Matrix<double> displacements = centroids * latticeVectors.Inverse().Transpose() - parentCentroids;
+
+
+            for (int point = 0; point < displacements.RowCount; point++)
+            {
+                strainTensors.Add(DenseMatrix.Create(3, 3, 0));
+                List<int> neighbors = Calculator.NearestNeighbors(centroids.Row(point), this);
+                Matrix<double> divideBy = DenseMatrix.Create(3, 3, 0);
+                foreach (int neighbor in neighbors)
+                {
+                    if (neighbor != point)
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            for (int j = 0; j < 3; j++)
+                            {
+                                if (Math.Abs(parentCentroids.Row(neighbor)[j] - parentCentroids.Row(point)[j]) > 0.0001)
+                                {
+                                    strainTensors[point][i, j] = (displacements.Row(neighbor)[i] - displacements.Row(point)[i]) / (parentCentroids.Row(neighbor)[j] - parentCentroids.Row(point)[j]);
+                                    divideBy[i, j]++;
+                                }
+                            }
+                        }
+                    }
+                }
+                strainTensors[point].PointwiseDivide(divideBy);
+                strainTensors[point] += strainTensors[point].Transpose();
+                strainTensors[point] /= 2.0;
+            }
+            return strainTensors;
+        }
+
+        public void Dislocate(Vector<double> location, Vector<double> sense, Vector<double> burgers, Vector<double> tearDirection, double radius)
+        {
+            if (Math.Abs(Calculator.CrossProduct(sense, tearDirection).L2Norm()) < 0.01) throw new NotImplementedException();
+            Matrix<double> centralizer = DenseMatrix.Create(3, 3, 0);
+            centralizer.SetColumn(2, sense);
+            centralizer.SetColumn(0, (Calculator.CrossProduct(Calculator.CrossProduct(sense, tearDirection), sense)).Normalize(2));
+            centralizer.SetColumn(1, Calculator.CrossProduct(centralizer.Column(2), centralizer.Column(0)));
+
+            Matrix<double> rotatedCentroids = centroids * latticeVectors.Inverse().Transpose() * centralizer;
+            location = centralizer.Transpose() * location;
+            burgers = latticeVectors * burgers;
+            Matrix<double> displacement = DenseMatrix.Create(centroids.RowCount, 3, 0);
+
+            for (int i = 0; i < rotatedCentroids.RowCount; i++)
+            {
+                Vector<double> point = rotatedCentroids.Row(i) - location;
+                double rho = Math.Sqrt(point[0] * point[0] + point[1] * point[1]);
+                double theta = Math.Atan2(point[1], point[0]);
+                double multiplier = 1;
+                if (rho < radius) multiplier *= rho / radius;
+                multiplier *= theta / (Math.PI * 2.0);
+                centroids.SetRow(i, centroids.Row(i) + burgers * multiplier);
+                mols[i].Translate(burgers * multiplier);
+            }
+
         }
     }
 }

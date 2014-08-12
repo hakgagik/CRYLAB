@@ -32,6 +32,13 @@ namespace CRYLAB
         Full
     }
 
+    public enum Interactivity
+    {
+        None,
+        Dislocation,
+        FrankRead
+    }
+
     public struct MiscInfo
     {
         public Color4[] colorOrder;
@@ -81,6 +88,7 @@ namespace CRYLAB
 
         private bool rotationLocked = false;
         private bool mouseDown = false;
+        private bool ctrlDown = false;
         int mouseX;
         int mouseY;
         bool mouseChanged;
@@ -93,6 +101,9 @@ namespace CRYLAB
 
         private bool grabScreenshot;
         Bitmap screenshot;
+
+        private List<Vector3d> pointBuffer;
+        private Interactivity interactivity = Interactivity.None;
 
         public Plotter(CRYLAB form)
         {
@@ -148,10 +159,20 @@ namespace CRYLAB
                     case MouseButton.Left:
                         if (!rotationLocked)
                         {
-                            theta -= (double)e.YDelta * Math.PI / 200.0;
-                            theta = Calculator.Clip(0, Math.PI, theta);
-                            phi -= (double)e.XDelta * Math.PI / 200.0;
-                            UpdateView();
+                            if (ctrlDown)
+                            {
+                                gameWidth /= Math.Exp(e.YDelta / 20.0);
+                                gameHeight /= Math.Exp(e.YDelta / 20.0);
+                                gameWidth = Calculator.Clip((extents[1] - extents[0]) / 20.0, (extents[1] - extents[0]) * 20.0, gameWidth);
+                                gameHeight = Calculator.Clip((extents[3] - extents[2]) / 20.0, (extents[3] - extents[2]) * 20.0, gameHeight);
+                            }
+                            else
+                            {
+                                theta -= (double)e.YDelta * Math.PI / (200.0);
+                                theta = Calculator.Clip(0, Math.PI, theta);
+                                phi -= (double)e.XDelta * Math.PI / 200.0;
+                                UpdateView();
+                            }
                         }
                         break;
                     case MouseButton.Right:
@@ -177,7 +198,14 @@ namespace CRYLAB
         {
             mouseDown = true;
             mouseButton = e.Button;
-            Vector<double> seed = ProjectToPlane(e.X, e.Y);
+            if (interactivity !=Interactivity.None && e.Button == MouseButton.Left)
+            {
+                pointBuffer.Add(Calculator.Num2TK(ProjectToPlane(e.X, e.Y)));
+            }
+            else if (e.Button == MouseButton.Right)
+            {
+                CancelInteractivity();
+            }
         }
         
         void game_RenderFrame(object sender, FrameEventArgs e)
@@ -217,8 +245,12 @@ namespace CRYLAB
                     game.Exit();
                 }
 
+                if (game.Keyboard[Key.ControlLeft] || game.Keyboard[Key.ControlRight]) ctrlDown = true;
+                else ctrlDown = false;
+
                 if (grabScreenshot)
                 {
+                    Pause();
                     if (GraphicsContext.CurrentContext == null) throw new GraphicsContextMissingException();
                     screenshot = new Bitmap(game.ClientSize.Width, game.ClientSize.Height);
                     System.Drawing.Imaging.BitmapData data = screenshot.LockBits(game.ClientRectangle, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
@@ -227,6 +259,7 @@ namespace CRYLAB
 
                     screenshot.RotateFlip(RotateFlipType.RotateNoneFlipY);
                     grabScreenshot = false;
+                    UnPause();
                 }
 
                 if (fieldLineStyle == FieldLineStyle.Single && mouseChanged)
@@ -236,7 +269,34 @@ namespace CRYLAB
                     calcFieldLinesThread.Start();
                 }
             }
+            Vector<double> mousePosition = DenseVector.Create(1, 0);
+            int numel = 0;
 
+            switch (mainForm.mousePositionFormat)
+            {
+                case MousePositionFormat.Cartesian:
+                    mousePosition = ProjectToPlane(mouseX, mouseY);
+                    numel = 3;
+                    break;
+                case MousePositionFormat.Fractional:
+                    mousePosition = currentCell.latticeVectors.Solve(ProjectToPlane(mouseX, mouseY));
+                    numel = 2;
+                    break;
+                case MousePositionFormat.Screen:
+                    mousePosition = DenseVector.OfArray(new double[] { mouseX, mouseY });
+                    numel = 2;
+                    break;
+            }
+
+            string labelText = "Mouse Position: (";
+            for (int dim = 0; dim < numel; dim++)
+            {
+                if (dim != 0) labelText += ", ";
+                labelText += mousePosition[dim];
+            }
+            labelText += ")";
+            mainForm.mousePositionLabel.Text = labelText;
+            
             if (exitGame)
             {
                 game.Exit();
@@ -298,6 +358,15 @@ namespace CRYLAB
                     RenderFullFieldLines();
                     break;
             }
+            switch (interactivity)
+            {
+                case Interactivity.Dislocation:
+                    RenderDislocation();
+                    break;
+                case Interactivity.FrankRead:
+                    RenderFrankRead();
+                    break;
+            }
         }
         
         public void Plot(SuperCell superCell, PlotStyle plotStyle)
@@ -330,6 +399,14 @@ namespace CRYLAB
             }
         }
 
+        public void DrawDislocation()
+        {
+            if (isPaused) return;
+            interactivity = Interactivity.Dislocation;
+            rotationLocked = true;
+            pointBuffer = new List<Vector3d>();
+        }
+
         private void SetPlotInfo(SuperCell superCell, PlotStyle thisPlotStyle)
         {
             currentCell = superCell;
@@ -338,15 +415,18 @@ namespace CRYLAB
             miscInfo = new MiscInfo();
             displayList = new List<Vector3d>();
             extents = new double[] { double.MaxValue, double.MinValue, double.MaxValue, double.MinValue, double.MaxValue, double.MinValue };
-            target = new Vector3d(0.0, 0.0, 0.0);
             up = new Vector3d(0.0, 1.0, 0.0);
             right = new Vector3d(1.0, 0.0, 0.0);
-            Vector<double> tempPlaneNormal = Calculator.CrossProduct(superCell.latticeVectors.Column(0), superCell.latticeVectors.Column(1));
-            miscInfo.planeNormal = new Vector3d(tempPlaneNormal[0], tempPlaneNormal[1], tempPlaneNormal[2]);
-            miscInfo.pointOnPlane = new Vector3d(superCell.centroids.Row(0)[0], superCell.centroids.Row(0)[1], superCell.centroids.Row(0)[2]);
+            miscInfo.planeNormal = Calculator.Num2TK(Calculator.CrossProduct(superCell.latticeVectors.Column(0), superCell.latticeVectors.Column(1)));
+            miscInfo.pointOnPlane = Calculator.Num2TK(superCell.centroids.Row(0));
             rotationLocked = false;
-            theta = 0.0;
-            phi = -Math.PI / 2;
+            Vector3d oldTarget = target;
+            if (!isRunning)
+            {
+                target = new Vector3d(0.0, 0.0, 0.0);
+                theta = 0.0;
+                phi = -Math.PI / 2;
+            }
             switch (plotStyle)
             {
                 case PlotStyle.Molecules:
@@ -365,19 +445,17 @@ namespace CRYLAB
                     }
                     for (int i = 0; i < superCell.mols.Count; i++)
                     {
-                        Vector3d myCentroid = new Vector3d(superCell.mols[i].centroid[0], superCell.mols[i].centroid[1], superCell.mols[i].centroid[2]);
+                        Vector3d myCentroid = Calculator.Num2TK(superCell.mols[i].centroid);
                         for (int j = 0; j < superCell.bonds.GetLength(0); j++)
                         {
-                            Vector<double> tempAtom = superCell.mols[i].atoms.Row(superCell.bonds[j,0]-1);
                             miscInfo.colorList.Add(miscInfo.colorOrder[superCell.bonds[j, 0]-1]);
-                            Vector3d atom = (new Vector3d(tempAtom[0], tempAtom[1], tempAtom[2])) + myCentroid;
+                            Vector3d atom = Calculator.Num2TK(superCell.mols[i].atoms.Row(superCell.bonds[j, 0] - 1)) + myCentroid;
                             extents = Calculator.UpdateExtents(extents, atom);
                             target += atom;
                             displayList.Add(atom);
 
-                            tempAtom = superCell.mols[i].atoms.Row(superCell.bonds[j, 1]-1);
                             miscInfo.colorList.Add(miscInfo.colorOrder[superCell.bonds[j, 1]-1]);
-                            atom = (new Vector3d(tempAtom[0], tempAtom[1], tempAtom[2])) + myCentroid;
+                            atom = Calculator.Num2TK(superCell.mols[i].atoms.Row(superCell.bonds[j, 1] - 1)) + myCentroid;
                             extents = Calculator.UpdateExtents(extents, atom);
                             target += atom;
                             displayList.Add(atom);
@@ -387,8 +465,7 @@ namespace CRYLAB
                 case PlotStyle.Centers:
                     for (int i = 0; i < superCell.centroids.RowCount; i++)
                     {
-                        Vector<double> tempCentroid = superCell.centroids.Row(i);
-                        Vector3d centroid = new Vector3d(tempCentroid[0], tempCentroid[1], tempCentroid[2]);
+                        Vector3d centroid = Calculator.Num2TK(superCell.centroids.Row(i));
                         extents = Calculator.UpdateExtents(extents, centroid);
                         target += centroid;
                         displayList.Add(centroid);
@@ -402,11 +479,19 @@ namespace CRYLAB
                     break;
             }
             target /= (double)displayList.Count;
-            gameWidth = (extents[1] - extents[0]) * 1.1;
-            gameHeight = (extents[3] - extents[2]) * 1.1;
-            gameDepth = extents[5] - extents[4];
-            depthClipPlane = Math.Max(Math.Max(gameWidth, gameDepth), gameDepth);
-            eye = new Vector3d(target.X, target.Y, depthClipPlane * 2.0);
+            if (!isRunning)
+            {
+                gameWidth = (extents[1] - extents[0]) * 1.1;
+                gameHeight = (extents[3] - extents[2]) * 1.1;
+                gameDepth = extents[5] - extents[4];
+                depthClipPlane = Math.Max(Math.Max(gameWidth, gameDepth), gameDepth);
+                eye = new Vector3d(target.X, target.Y, depthClipPlane * 2.0);
+            }
+            else
+            {
+                target = oldTarget;
+                UpdateView();
+            }
             r = (eye - target).Length;
         }
 
@@ -447,37 +532,37 @@ namespace CRYLAB
         public void GrabDirections(SuperCell superCell, bool curls)
         {
             double multiplier;
-            if (superCell.isParent) multiplier = 10;
-            else multiplier = 100;
+            if (superCell.isParent) multiplier = 1;
+            else multiplier = 10;
+            if (plotStyle == PlotStyle.Directions) multiplier *= 10;
             for (int i = 0; i < superCell.centroids.RowCount; i++)
             {
-                Vector<double> tempCentroid = superCell.centroids.Row(i);
-                Vector3d centroid = new Vector3d(tempCentroid[0], tempCentroid[1], tempCentroid[2]);
+                Vector3d centroid = Calculator.Num2TK(superCell.centroids.Row(i));
                 extents = Calculator.UpdateExtents(extents, centroid);
-                Vector<double> tempDirection;
+                Vector3d direction;
                 if (curls)
                 {
                     if (superCell.isParent)
                     {
-                        tempDirection = superCell.curls.Row(i);
+                        direction = Calculator.Num2TK(superCell.curls.Row(i));
                     }
                     else
                     {
-                        tempDirection = superCell.curls.Row(i) - superCell.parent.curls.Row(i);
+                        direction = Calculator.Num2TK(superCell.curls.Row(i) - superCell.parent.curls.Row(i));
                     }
                 }
                 else
                 {
                     if (superCell.isParent)
                     {
-                        tempDirection = superCell.directions.Row(i);
+                        direction = Calculator.Num2TK(superCell.directions.Row(i));
                     }
                     else
                     {
-                        tempDirection = superCell.directions.Row(i) - superCell.parent.directions.Row(i);
+                        direction = Calculator.Num2TK(superCell.directions.Row(i) - superCell.parent.directions.Row(i));
                     }
                 }
-                Vector3d direction = new Vector3d(tempDirection[0], tempDirection[1], tempDirection[2]);
+                
                 target += 2 * centroid;
                 displayList.Add(centroid - 0.5 * direction * multiplier);
                 displayList.Add(centroid + 0.5 * direction * multiplier);
@@ -499,7 +584,7 @@ namespace CRYLAB
             Vector3d lineDirection = eye-target;
             Vector3d POI = lineDirection * (Vector3d.Dot(miscInfo.pointOnPlane - screenPoint, miscInfo.planeNormal) / Vector3d.Dot(lineDirection, miscInfo.planeNormal)) + screenPoint;
 
-            return DenseVector.OfArray(new double[] { POI[0], POI[1], POI[2] });
+            return Calculator.TK2Num(POI);
         }
 
         public void GrabFieldLinesFromMouse()
@@ -508,25 +593,11 @@ namespace CRYLAB
             pauseFieldLines = true;
             if (currentCell.isParent)
             {
-                if (plotStyle == PlotStyle.Curl)
-                {
-                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.curls, seed, currentCell, 5.0);
-                }
-                else
-                {
-                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions, seed, currentCell, 5.0);
-                }
+                fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions, seed, currentCell, 5.0);
             }
             else
             {
-                if (plotStyle == PlotStyle.Curl)
-                {
-                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.curls - currentCell.parent.directions, seed, currentCell, 5.0);
-                }
-                else 
-                {
-                    fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions-currentCell.parent.directions, seed, currentCell, 5.0);
-                }
+                fieldLineList[0] = Calculator.GetFieldLine(currentCell.directions - currentCell.parent.directions, seed, currentCell, 5.0);
             }
             pauseFieldLines = false;
         }
@@ -536,32 +607,29 @@ namespace CRYLAB
             double max = double.MinValue;
             double min = double.MaxValue;
             FieldLine currentFieldLine;
+            List<Matrix<double>> strains = currentCell.FirstOrderStrain();
+            Vector<double> Ezz = DenseVector.Create(strains.Count, 0);
+            for (int i = 0; i < strains.Count; i++)
+            {
+                Ezz[i] = strains[i][2, 2];
+            }
             for (int i = 0; i < currentCell.centroids.RowCount; i++)
             {
                 pauseFieldLines = true;
                 if (currentCell.isParent)
                 {
-                    if (plotStyle == PlotStyle.Curl)
-                    {
-                        currentFieldLine = Calculator.GetFieldLine(currentCell.curls, currentCell.centroids.Row(i), currentCell, 5.0);
-                    }
-                    else
-                    {
-                        currentFieldLine = Calculator.GetFieldLine(currentCell.directions, currentCell.centroids.Row(i), currentCell, 5.0);
+                    currentFieldLine = Calculator.GetFieldLine(currentCell.directions, currentCell.centroids.Row(i), currentCell, 5.0);
 
-                    }
                 }
                 else
                 {
-                    if (plotStyle == PlotStyle.Curl)
-                    {
-                        currentFieldLine = Calculator.GetFieldLine(currentCell.curls - currentCell.parent.curls, currentCell.centroids.Row(i), currentCell, 5.0);
-                    }
-                    else
-                    {
-                        currentFieldLine = Calculator.GetFieldLine(currentCell.directions - currentCell.parent.directions, currentCell.centroids.Row(i), currentCell, 5.0);
-                    }
+                    currentFieldLine = Calculator.GetFieldLine(currentCell.directions - currentCell.parent.directions, currentCell.centroids.Row(i), currentCell, 5.0);
                 }
+                //for (int j = 0; j < currentFieldLine.Count; j++)
+                //{
+                //    currentFieldLine.Strength[j] = Calculator.Interpolate(Calculator.NearestNeighbors(Calculator.TK2Num(currentFieldLine[j]), currentCell), Ezz, currentCell, Calculator.TK2Num(currentFieldLine[j]), 5.0);
+                //}
+
                 fieldLineList.Add(currentFieldLine);
                 if (currentFieldLine.Strength.Min() != 0)
                 {
@@ -576,11 +644,11 @@ namespace CRYLAB
             {
                 for (int i = 0; i < fieldLine.Count; i++)
                 {
-                    if (fieldLine.Strength[i] == 0) fieldLine.Colors.Add(new Color4(0f, 0f, 1f, 1f));
+                    if (fieldLine.Strength[i] == 0) fieldLine.Colors.Add(colors[1]);
                     else
                     {
-                        double ratio = (Math.Log(fieldLine.Strength[i]) - logMin) / range;
-                        fieldLine.Colors.Add(new Color4((float)ratio, 0f, (float)(1 - ratio), 1f));
+                        float ratio = (float)((Math.Log(fieldLine.Strength[i]) - logMin) / range);
+                        fieldLine.Colors.Add(new Color4(colors[1].R * (1 - ratio) + colors[0].R * ratio, colors[1].G * (1 - ratio) + colors[0].G * ratio, colors[1].B * (1 - ratio) + colors[0].B * ratio, colors[1].A * (1 - ratio) + colors[0].A * ratio));
                     }
                 }
             }
@@ -623,12 +691,6 @@ namespace CRYLAB
                 if (isPaused) break;
                 GL.Vertex3(centroid);
             }
-#if _debug
-            GL.Color4(Color4.Red);
-            GL.Vertex3(target);
-            GL.Color4(0, 0, 0, 0);
-            GL.Vertex3(displayList[0]);
-#endif
             GL.End();
         }
         
@@ -701,6 +763,41 @@ namespace CRYLAB
                 GL.End();
                 if (pauseFieldLines || breakout) break;
             }
+        }
+
+        private void RenderDislocation()
+        {
+            GL.Begin(PrimitiveType.Lines);
+            if (pointBuffer.Count > 0)
+            {
+                GL.Vertex3(pointBuffer[0]);
+            }
+            if (pointBuffer.Count > 1)
+            {
+                GL.Vertex3(pointBuffer[1]);
+            }
+            else
+            {
+                GL.Vertex3(Calculator.Num2TK(ProjectToPlane(mouseX, mouseY)));
+            }
+            GL.End();
+            if (pointBuffer.Count > 1)
+            {
+                GL.Begin(PrimitiveType.LineLoop);
+                double radius = (Calculator.Num2TK(ProjectToPlane(mouseX, mouseY)) - pointBuffer[1]).Length;
+
+
+                GL.End();
+            }
+        }
+
+        private void RenderFrankRead()
+        {
+
+        }
+
+        private void CancelInteractivity()
+        {
         }
     }
 }
