@@ -640,15 +640,29 @@ namespace CRYLAB
             }
             double logMin = Math.Log(min);
             double range = Math.Log(max) - logMin;
-            foreach (FieldLine fieldLine in fieldLineList)
+            if (range > 0.0001)
             {
-                for (int i = 0; i < fieldLine.Count; i++)
+                foreach (FieldLine fieldLine in fieldLineList)
                 {
-                    if (fieldLine.Strength[i] == 0) fieldLine.Colors.Add(colors[1]);
-                    else
+                    for (int i = 0; i < fieldLine.Count; i++)
                     {
-                        float ratio = (float)((Math.Log(fieldLine.Strength[i]) - logMin) / range);
-                        fieldLine.Colors.Add(new Color4(colors[1].R * (1 - ratio) + colors[0].R * ratio, colors[1].G * (1 - ratio) + colors[0].G * ratio, colors[1].B * (1 - ratio) + colors[0].B * ratio, colors[1].A * (1 - ratio) + colors[0].A * ratio));
+                        if (fieldLine.Strength[i] == 0) fieldLine.Colors.Add(colors[1]);
+                        else
+                        {
+                            float ratio = (float)((Math.Log(fieldLine.Strength[i]) - logMin) / range);
+                            fieldLine.Colors.Add(new Color4(colors[1].R * (1 - ratio) + colors[0].R * ratio, colors[1].G * (1 - ratio) + colors[0].G * ratio, colors[1].B * (1 - ratio) + colors[0].B * ratio, colors[1].A * (1 - ratio) + colors[0].A * ratio));
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Color4 midColor = new Color4(0.5f * colors[0].R + 0.5f * colors[1].R, 0.5f * colors[0].G + 0.5f * colors[1].G, 0.5f * colors[0].B + 0.5f * colors[1].B, 0.5f * colors[0].A + 0.5f * colors[1].A);
+                foreach (FieldLine fieldLine in fieldLineList)
+                {
+                    for (int i = 0; i < fieldLine.Count; i++)
+                    {
+                        fieldLine.Colors.Add(midColor);
                     }
                 }
             }
