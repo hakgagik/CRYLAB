@@ -797,9 +797,10 @@ namespace CRYLAB
             GL.End();
             if (pointBuffer.Count > 1)
             {
-                GL.Begin(PrimitiveType.LineLoop);
                 double radius = (Calculator.Num2TK(ProjectToPlane(mouseX, mouseY)) - pointBuffer[1]).Length;
-
+                radius = Math.Max(radius, 0.5);
+                GL.Begin(PrimitiveType.LineLoop);
+                
 
                 GL.End();
             }
